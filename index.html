@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数直線の目もりよみ</title>
+<style>
+  :root{
+    --ink:#28323c;
+    --line:#2a3742;
+    --paper:#fbfaf5;
+    --grid:#e7ecef;
+    --rule:#cfd8dd;
+    --red:#e02424;
+    --arrow:#f2602a;
+    --hint:#ffd34d;
+    --rand:#3a86d6;
+    --regen:#34a87a;
+    --check:#f2602a;
+    --key:#ffffff;
+    --keyline:#d7dde1;
+    --ok:#2f9e60;
+    --ng:#d8533a;
+    --hintlbl:#2f6fd0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Yu Gothic UI",system-ui,sans-serif;
+    background:
+      linear-gradient(0deg, rgba(0,0,0,0.015) 1px, transparent 1px) 0 0/100% 28px,
+      var(--paper);
+    color:var(--ink);
+    display:flex;justify-content:center;
+    padding:18px 14px 40px;
+  }
+  .wrap{width:100%;max-width:920px;}
+  h1{
+    font-size:1.15rem;font-weight:800;letter-spacing:.02em;
+    margin:0 0 4px;color:var(--ink);
+  }
+  .sub{font-size:.92rem;color:#6a7780;margin:0 0 12px;}
+
+  /* level switch */
+  .levels{display:flex;gap:8px;margin:0 0 14px;}
+  .levels button{
+    background:#eef2f4;color:#5a6772;border:2px solid var(--rule);
+    box-shadow:none;padding:9px 18px;border-radius:12px;font-size:.95rem;
+  }
+  .levels button.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  /* 10倍モード */
+  .ops{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:2px 0 14px;}
+  .ops button{
+    background:#eef2f4;color:#3a4750;border:2px solid var(--rule);box-shadow:none;
+    padding:10px 16px;border-radius:12px;font-size:1.05rem;
+  }
+  .ops button.on{background:var(--rand);color:#fff;border-color:var(--rand);}
+  .qmul{text-align:center;font-weight:800;font-size:1.2rem;margin:2px 0 6px;}
+  .mover{
+    text-align:center;padding:6px 4px 0;
+    touch-action:none;user-select:none;-webkit-user-select:none;cursor:ew-resize;
+  }
+  .mover svg{display:inline-block;}
+  .draghint{text-align:center;font-size:.9rem;color:#8a97a0;margin:0 0 4px;}
+  .moverctl{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:2px 0 2px;}
+  #ptReset{background:#8a97a0;padding:12px 18px;}
+  .nowval{text-align:center;font-weight:800;font-size:1.15rem;color:#3a4750;margin:6px 0 2px;}
+  .revealmul{text-align:center;font-weight:900;font-size:1.3rem;color:var(--red);min-height:1.4em;margin:2px 0 0;}
+
+  /* number line card */
+  .board{
+    position:relative;
+    background:#fff;border:2px solid var(--rule);border-radius:18px;
+    padding:14px 10px 6px;
+    box-shadow:0 6px 0 rgba(42,55,66,.06);
+    overflow:hidden;
+  }
+  /* はなまる */
+  .maru{
+    position:absolute;inset:0;display:none;
+    align-items:center;justify-content:center;
+    pointer-events:none;z-index:5;
+  }
+  .maru.show{display:flex;}
+  .maru img{
+    width:46%;max-width:240px;height:auto;
+    filter:drop-shadow(0 6px 14px rgba(224,36,36,.25));
+    animation:pop .5s cubic-bezier(.18,1.5,.4,1) both;
+  }
+  @keyframes pop{
+    0%{transform:scale(.2) rotate(-18deg);opacity:0;}
+    60%{transform:scale(1.12) rotate(6deg);opacity:1;}
+    100%{transform:scale(1) rotate(0);opacity:1;}
+  }
+  @media(prefers-reduced-motion:reduce){ .maru img{animation:none;} }
+  svg{display:block;width:100%;height:auto;}
+  .question{
+    text-align:center;font-weight:800;font-size:1.08rem;
+    margin:8px 0 2px;color:var(--ink);
+  }
+  .question .u{color:#6a7780;font-weight:700;}
+
+  /* controls row */
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:16px 0 6px;}
+  button{
+    font-family:inherit;cursor:pointer;border:none;border-radius:14px;
+    font-weight:800;color:#fff;padding:13px 18px;font-size:1rem;
+    box-shadow:0 4px 0 rgba(0,0,0,.16);transition:transform .04s, box-shadow .04s;
+    -webkit-tap-highlight-color:transparent;
+  }
+  button:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.16);}
+  button:focus-visible{outline:3px solid #2a3742;outline-offset:2px;}
+  .b-hint{background:var(--hint);color:#5a4a00;}
+  .b-hint.on{background:#ffbf1f;color:#5a4a00;box-shadow:inset 0 0 0 3px #fff,0 4px 0 rgba(0,0,0,.16);}
+  .b-rand{background:var(--rand);}
+  .b-regen{background:var(--regen);}
+  .b-reveal{background:#8a97a0;}
+
+  /* answer area */
+  .answer{
+    margin-top:18px;background:#fff;border:2px solid var(--rule);border-radius:18px;
+    padding:16px;box-shadow:0 6px 0 rgba(42,55,66,.06);
+  }
+  .answer .lbl{font-weight:800;font-size:1rem;margin-bottom:10px;}
+  .ansline{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;}
+  #ans{
+    flex:1 1 200px;min-width:0;font-family:inherit;font-weight:800;
+    font-size:2rem;text-align:center;letter-spacing:.04em;
+    padding:10px 12px;border:3px solid var(--keyline);border-radius:14px;
+    background:#fdfdfb;color:var(--ink);
+  }
+  #ans:focus{outline:none;border-color:var(--rand);}
+  .ansline .unit{display:flex;align-items:center;font-weight:800;font-size:1.4rem;color:#6a7780;padding:0 4px;}
+  .b-check{background:var(--check);flex:0 0 auto;padding:0 22px;font-size:1.05rem;}
+
+  /* keypad */
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;}
+  .pad button{
+    background:var(--key);color:var(--ink);font-size:1.5rem;padding:16px 0;
+    border:2px solid var(--keyline);box-shadow:0 4px 0 #e3e8eb;
+  }
+  .pad button:active{box-shadow:0 1px 0 #e3e8eb;}
+  .pad .k-dot{color:var(--red);}
+  .pad .k-back{color:#6a7780;}
+  .pad .k-clear{background:#fdeee9;color:var(--ng);border-color:#f3cdc0;box-shadow:0 4px 0 #f0d6cb;}
+
+  /* feedback */
+  .fb{min-height:38px;text-align:center;font-weight:900;font-size:1.5rem;margin-top:12px;}
+  .fb.ok{color:var(--ok);}
+  .fb.ng{color:var(--ng);}
+  .fb.neutral{color:#6a7780;font-size:1.05rem;}
+
+  @media(max-width:520px){
+    h1{font-size:1.05rem;}
+    #ans{font-size:1.7rem;}
+    button{padding:12px 14px;font-size:.95rem;}
+    .mover{font-size:2.5rem;}
+    .qmul{font-size:1.05rem;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>数直線の目もりよみ</h1>
+  <p class="sub" id="sub">矢印（↑）がさす目もりは何mかな？ 1目もりは 0.001 です。</p>
+  <div class="levels">
+    <button id="tab1" class="on">数直線1</button>
+    <button id="tab2">数直線2</button>
+    <button id="tab3">10倍</button>
+  </div>
+
+  <div class="board">
+    <div id="nlArea">
+      <svg id="nl" viewBox="0 0 1060 220" role="img" aria-label="数直線"></svg>
+      <p class="question">↑ の目もりは <span class="u">何 m</span> ？</p>
+    </div>
+
+    <div id="mulArea" style="display:none">
+      <div class="ops" id="ops">
+        <button data-op="x10" class="on">×10</button>
+        <button data-op="x100">×100</button>
+        <button data-op="d10">1/10</button>
+        <button data-op="d100">1/100</button>
+      </div>
+      <p class="qmul" id="qmul"></p>
+      <div class="mover" id="mover"></div>
+      <p class="draghint">小数点（<span style="color:var(--red);font-weight:900">.</span>）を 左右に ドラッグ してね</p>
+      <div class="moverctl">
+        <button id="ptReset">もとにもどす</button>
+      </div>
+      <p class="nowval" id="nowval"></p>
+      <p class="revealmul" id="revealmul"></p>
+    </div>
+
+    <div class="maru" id="maru" aria-hidden="true">
+      <img src="https://raw.githubusercontent.com/byakusen/hanamaru/refs/heads/main/hanamaru2.png" alt="はなまる">
+    </div>
+    <audio id="seikai" src="https://github.com/byakusen/gogelige.quiz/raw/refs/heads/main/quiz_seikai.mp3" preload="auto"></audio>
+  </div>
+
+  <div class="row" id="rowNL">
+    <button class="b-hint" id="hintBtn">ヒント（0をつける）</button>
+    <button class="b-rand" id="randBtn">ランダム（矢印をかえる）</button>
+    <button class="b-regen" id="regenBtn">再生成（数をかえる）</button>
+  </div>
+  <div class="row" id="rowMul" style="display:none">
+    <button class="b-regen" id="regenMulBtn">再生成（数をかえる）</button>
+  </div>
+
+  <div class="answer">
+    <div class="lbl">こたえ</div>
+    <div class="ansline">
+      <input id="ans" inputmode="decimal" placeholder="れい：4.297" autocomplete="off">
+      <div class="unit" id="unit">m</div>
+      <button class="b-check" id="checkBtn">こたえあわせ</button>
+    </div>
+
+    <div class="pad">
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button class="k-dot" data-k=".">.</button>
+      <button data-k="0">0</button>
+      <button class="k-back" data-k="back">←</button>
+    </div>
+    <div class="pad" style="grid-template-columns:1fr 1fr;margin-top:10px;">
+      <button class="k-clear" data-k="clear">ぜんぶけす</button>
+      <button class="b-reveal" id="revealBtn">こたえを見る</button>
+    </div>
+
+    <div class="fb" id="fb"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // すべて「1000分の1（thousandths）」の整数で管理して誤差をなくす
+  var level   = 1;
+  var baseTh  = 4300;   // レベル1=まんなかの数 / レベル2=左はしの数
+  var arrowTh = 4297;
+  var hintStage = 0;    // 0=なし。レベル1は1まで、レベル2は2まで
+  var revealed  = false;
+
+  // 表示モードと「10倍」モードの状態
+  var mode = 'nl1';       // 'nl1' | 'nl2' | 'mul'
+  var digits = '085';     // もとの数の数字（固定。例 0.85→"085", 1.35→"135"）
+  var BASEPOS = 1;        // もとの数は「1けた目の右」に点（d0.d1d2）
+  var pointPos = 1;       // いまの小数点の位置＝点の左にある元の数字の数（-1〜3）
+  var mulOp = 'x10';      // えらんでいる問題
+  var mulRevealed = false;
+
+  var BASEY = 120, LEFT = 50;
+  function rnd(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
+  function fmt1(th){ return (th/1000).toFixed(1); }   // 4.3 / 2.4
+  function fmt2(th){ return (th/1000).toFixed(2); }   // 4.29 / 2.45
+  function fmt3(th){ return (th/1000).toFixed(3); }   // こたえ
+
+  // レベルごとの数直線パラメータ
+  function cfg(){
+    if(level===1){
+      return { axisMin:baseTh-14, drawMin:baseTh-13, drawMax:baseTh+13, PX:33,
+               majors:[baseTh-10, baseTh, baseTh+10] };
+    }
+    return { axisMin:baseTh-4, drawMin:baseTh-3, drawMax:baseTh+53, PX:16.5,
+             majors:[baseTh, baseTh+10, baseTh+20, baseTh+30, baseTh+40, baseTh+50] };
+  }
+  function xOf(th){ var c=cfg(); return LEFT + (th - c.axisMin)*c.PX; }
+  function maxHint(){ return level===1 ? 1 : 2; }
+
+  var svg = document.getElementById('nl');
+
+  function txt(th,text,size,fill){
+    return '<text x="'+xOf(th)+'" y="78" text-anchor="middle" font-size="'+size+'" font-weight="800" fill="'+fill+'">'+text+'</text>';
+  }
+
+  function render(){
+    var c = cfg(), s='';
+
+    // 軸
+    s += '<line x1="'+xOf(c.axisMin)+'" y1="'+BASEY+'" x2="1018" y2="'+BASEY+'" stroke="var(--line)" stroke-width="3.5" stroke-linecap="round"/>';
+
+    // 目もり（0.005 の真ん中は少し長く）
+    for(var th=c.drawMin; th<=c.drawMax; th++){
+      var major = c.majors.indexOf(th)!==-1;
+      var mid   = (th % 10 === 5);
+      var top = major ? BASEY-28 : (mid ? BASEY-21 : BASEY-14);
+      var sw  = major ? 3 : (mid ? 1.9 : 1.4);
+      s += '<line x1="'+xOf(th)+'" y1="'+top+'" x2="'+xOf(th)+'" y2="'+BASEY+'" stroke="var(--line)" stroke-width="'+sw+'"/>';
+    }
+
+    // ラベル
+    if(level===1){
+      var L0=baseTh-10, L1=baseTh, L2=baseTh+10;
+      s += txt(L0, fmt2(L0), 30, 'var(--ink)');
+      s += txt(L2, fmt2(L2), 30, 'var(--ink)');
+      var ctr = '<text x="'+xOf(L1)+'" y="78" text-anchor="middle" font-size="30" font-weight="800" fill="var(--ink)">'+fmt1(L1);
+      ctr += (hintStage>=1) ? '<tspan fill="var(--red)">0</tspan>' : '';
+      ctr += '</text>';
+      s += ctr;
+    } else {
+      var lo=baseTh, hi=baseTh+50;
+      var left = '<text x="'+xOf(lo)+'" y="78" text-anchor="middle" font-size="30" font-weight="800" fill="var(--ink)">'+fmt1(lo);
+      left += (hintStage>=2) ? '<tspan fill="var(--red)">0</tspan>' : '';   // ヒント②
+      left += '</text>';
+      s += left;
+      s += txt(hi, fmt2(hi), 30, 'var(--ink)');
+      if(hintStage>=1){                                                      // ヒント①：中間の数
+        [10,20,30,40].forEach(function(d){
+          s += txt(baseTh+d, fmt2(baseTh+d), 26, 'var(--hintlbl)');
+        });
+      }
+    }
+
+    // (m)
+    s += '<text x="1026" y="88" text-anchor="end" font-size="26" font-weight="700" fill="#6a7780">(m)</text>';
+
+    // 矢印
+    var ax = xOf(arrowTh);
+    s += '<line x1="'+ax+'" y1="'+(BASEY+40)+'" x2="'+ax+'" y2="'+(BASEY+10)+'" stroke="var(--arrow)" stroke-width="5" stroke-linecap="round"/>';
+    s += '<path d="M '+(ax-11)+' '+(BASEY+18)+' L '+(ax+11)+' '+(BASEY+18)+' L '+ax+' '+(BASEY+4)+' Z" fill="var(--arrow)"/>';
+    s += '<text x="'+ax+'" y="'+(BASEY+66)+'" text-anchor="middle" font-size="26" font-weight="900" fill="var(--arrow)">?</text>';
+
+    if(revealed){
+      s += '<text x="'+ax+'" y="'+(BASEY-44)+'" text-anchor="middle" font-size="28" font-weight="900" fill="var(--red)">'+fmt3(arrowTh)+'</text>';
+    }
+
+    svg.innerHTML = s;
+    updateHintBtn();
+  }
+
+  function newArrow(){
+    var c=cfg(), loTh, hiTh;
+    if(level===1){ loTh=baseTh-12; hiTh=baseTh+12; }
+    else { loTh=baseTh+1; hiTh=baseTh+49; }
+    var cand=[];
+    for(var th=loTh; th<=hiTh; th++){
+      if(c.majors.indexOf(th)!==-1) continue;   // 0.01 のふしめは除く
+      cand.push(th);
+    }
+    arrowTh = cand[rnd(0,cand.length-1)];
+    revealed = false;
+  }
+
+  function regenerate(){
+    baseTh = rnd(1,9)*1000 + rnd(1,9)*100;   // 例 4.3 / 2.4 / 7.6
+    hintStage = 0;
+    newArrow();
+  }
+
+  // --- 10倍モード（数字は固定・小数点だけ動く / SVG）---
+  function opShift(op){ return op==='x10'?1 : op==='x100'?2 : op==='d10'?-1 : -2; }
+  function opLabel(op){ return op==='x10'?'10倍' : op==='x100'?'100倍' : op==='d10'?'1/10' : '1/100'; }
+  function opIsMul(op){ return op==='x10' || op==='x100'; }
+  function targetPos(op){ return BASEPOS + opShift(op); }   // 正かいの点の位置
+
+  // 数の列レイアウト（固定）：col0,col1=左の0用 / col2,3,4=元の数字9,1,3
+  var MV_M = 40, MV_W = 64, MV_VW = 400;
+  function colCenter(c){ return MV_M + c*MV_W + MV_W/2; }
+  function dotX(pos){ return MV_M + (pos+2)*MV_W; }         // pos の小数点のx
+
+  // pos の数を文字列で（値の判定・表示用）
+  function plainAt(pos){
+    if(pos>=1){ var ip=digits.slice(0,pos), fp=digits.slice(pos); return ip + (fp?('.'+fp):''); }
+    var zeros=-pos, fill=''; for(var i=0;i<zeros;i++) fill+='0'; return '0.'+fill+digits;
+  }
+  function cleanNum(p){ var v=parseFloat(p); return isNaN(v)?'':String(v); }
+  function mulCorrect(){ return parseFloat(plainAt(targetPos(mulOp))); }
+
+  function dtext(cx, ch, fill){
+    return '<text x="'+cx+'" y="64" text-anchor="middle" font-size="58" font-weight="800" fill="'+fill+'">'+ch+'</text>';
+  }
+  function buildMoverSVG(){
+    var s = '<svg viewBox="0 0 '+MV_VW+' 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:430px;height:auto">';
+    // 左の0（割り算のとき）
+    if(pointPos===0){ s += dtext(colCenter(1),'0','#c2cace'); }
+    if(pointPos===-1){ s += dtext(colCenter(0),'0','#c2cace') + dtext(colCenter(1),'0','#c2cace'); }
+    // 元の数字（いつも同じ位置・等間かく）
+    for(var k=0;k<digits.length;k++){ s += dtext(colCenter(k+2), digits.charAt(k), 'var(--ink)'); }
+    // もとの小数点（うす灰色）
+    s += '<circle cx="'+dotX(BASEPOS)+'" cy="60" r="5" fill="#c2cace"/>';
+    // 動いたぶんだけ「10倍」または「1/10」の弧を1つずつ
+    var delta = pointPos - BASEPOS;
+    if(delta !== 0){
+      var stepLabel = (delta>0) ? '10倍' : '1/10';
+      var n = Math.abs(delta);
+      for(var h=0; h<n; h++){
+        var from = (delta>0) ? (BASEPOS+h) : (BASEPOS-h);
+        var to   = (delta>0) ? (from+1) : (from-1);
+        var x1=dotX(from), x2=dotX(to), mx=(x1+x2)/2;
+        s += '<path d="M '+x1+' 74 Q '+mx+' 100 '+x2+' 74" fill="none" stroke="var(--red)" stroke-width="3.5"/>';
+        s += '<path d="M '+(x2-6)+' 80 L '+(x2+6)+' 80 L '+x2+' 69 Z" fill="var(--red)"/>';
+        s += '<text x="'+mx+'" y="118" text-anchor="middle" font-size="16" font-weight="800" fill="var(--red)">'+stepLabel+'</text>';
+      }
+    }
+    // いまの小数点（赤）
+    s += '<circle cx="'+dotX(pointPos)+'" cy="60" r="6" fill="var(--red)"/>';
+    s += '</svg>';
+    return s;
+  }
+
+  function renderMul(){
+    var baseStr = plainAt(BASEPOS);                 // "9.13" / "1.35"
+    document.getElementById('qmul').textContent =
+      baseStr+' を '+opLabel(mulOp)+' '+(opIsMul(mulOp)?'した':'にした')+'数は？';
+    document.getElementById('mover').innerHTML = buildMoverSVG();
+    document.getElementById('nowval').textContent = 'いまの数：'+cleanNum(plainAt(pointPos));
+    document.getElementById('revealmul').textContent =
+      mulRevealed ? ('こたえ：'+cleanNum(plainAt(targetPos(mulOp)))) : '';
+  }
+
+  function newMul(){
+    var d0=rnd(0,9), d1=rnd(1,9), d2=rnd(1,9);      // 一の位は0〜9（0だけではない）
+    digits = ''+d0+d1+d2;
+    pointPos = BASEPOS; mulOp='x10'; mulRevealed=false;
+  }
+
+  // --- こたえ入力 ---
+  var ans = document.getElementById('ans');
+  var fb  = document.getElementById('fb');
+  var maru = document.getElementById('maru');
+  var seikai = document.getElementById('seikai');
+
+  function showMaru(){
+    maru.classList.remove('show');
+    void maru.offsetWidth;       // アニメーションを毎回やり直す
+    maru.classList.add('show');
+    try{ seikai.currentTime = 0; seikai.play(); }catch(e){}
+  }
+  function hideMaru(){ maru.classList.remove('show'); }
+
+  function setFb(msg, cls){ fb.textContent = msg; fb.className = 'fb ' + (cls||''); }
+  function clearAll(){ ans.value=''; setFb('',''); hideMaru(); }
+
+  ans.addEventListener('input', function(){
+    hideMaru();
+    var v = ans.value.replace(/[^0-9.]/g,'');
+    var i = v.indexOf('.');
+    if(i !== -1){ v = v.slice(0,i+1) + v.slice(i+1).replace(/\./g,''); }
+    ans.value = v;
+  });
+
+  function press(k){
+    hideMaru();
+    if(k==='clear'){ ans.value=''; setFb('',''); return; }
+    if(k==='back'){ ans.value = ans.value.slice(0,-1); return; }
+    if(k==='.'){ if(ans.value.indexOf('.')!==-1) return; if(ans.value==='') ans.value='0'; ans.value += '.'; return; }
+    ans.value += k;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.pad button'), function(btn){
+    btn.addEventListener('click', function(){ press(btn.getAttribute('data-k')); ans.focus(); });
+  });
+
+  function check(){
+    var raw = ans.value.trim();
+    if(raw==='' || raw==='.'){ setFb('すうじを いれてね', 'neutral'); return; }
+    var v = parseFloat(raw);
+    if(isNaN(v)){ setFb('すうじを いれてね', 'neutral'); return; }
+    var target = (mode==='mul') ? mulCorrect() : arrowTh/1000;
+    if(Math.abs(v - target) < 1e-9){ setFb('◯ せいかい！', 'ok'); showMaru(); }
+    else { setFb('✗ もういちど', 'ng'); hideMaru(); }
+  }
+
+  // --- ヒントボタン（レベルで段階がちがう）---
+  var hintBtn = document.getElementById('hintBtn');
+  function hintLabel(){
+    if(level===1){ return hintStage>=1 ? 'ヒントを消す' : 'ヒント（0をつける）'; }
+    if(hintStage===0) return 'ヒント①（数を入れる）';
+    if(hintStage===1) return 'ヒント②（0をつける）';
+    return 'ヒントを消す';
+  }
+  function updateHintBtn(){
+    hintBtn.textContent = hintLabel();
+    hintBtn.classList.toggle('on', hintStage>0);
+  }
+  hintBtn.addEventListener('click', function(){
+    hintStage = (hintStage+1) % (maxHint()+1);
+    render();
+  });
+
+  // --- そのほかのボタン ---
+  document.getElementById('randBtn').addEventListener('click', function(){
+    newArrow(); clearAll(); render();
+  });
+  document.getElementById('regenBtn').addEventListener('click', function(){
+    regenerate(); clearAll(); render();
+  });
+  document.getElementById('revealBtn').addEventListener('click', function(){
+    if(mode==='mul'){ mulRevealed = !mulRevealed; renderMul(); }
+    else { revealed = !revealed; render(); }
+  });
+  document.getElementById('checkBtn').addEventListener('click', check);
+  ans.addEventListener('keydown', function(e){ if(e.key==='Enter') check(); });
+
+  // --- 10倍モードの操作 ---
+  function updateOpChips(){
+    Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
+      b.classList.toggle('on', b.getAttribute('data-op')===mulOp);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
+    b.addEventListener('click', function(){
+      mulOp = b.getAttribute('data-op');
+      pointPos = BASEPOS; mulRevealed = false;
+      updateOpChips(); clearAll(); renderMul();
+    });
+  });
+
+  // 小数点をドラッグ（数字は固定／点だけ動く・列は固定なので位置を正確に判定）
+  var mover = document.getElementById('mover');
+  var dragging = false;
+  function posFromEvent(e){
+    var svg = mover.querySelector('svg'); if(!svg) return null;
+    var r = svg.getBoundingClientRect();
+    var x = (e.clientX - r.left) * (MV_VW / r.width);
+    var p = Math.round((x - MV_M)/MV_W) - 2;
+    return Math.max(-1, Math.min(3, p));
+  }
+  function applyPos(p){
+    if(p!==null && p!==pointPos){ pointPos=p; hideMaru(); renderMul(); }
+  }
+  mover.addEventListener('pointerdown', function(e){
+    dragging = true;
+    applyPos(posFromEvent(e));
+    if(mover.setPointerCapture){ try{ mover.setPointerCapture(e.pointerId); }catch(_){} }
+    e.preventDefault();
+  });
+  mover.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    applyPos(posFromEvent(e));
+  });
+  mover.addEventListener('pointerup', function(){ dragging=false; });
+  mover.addEventListener('pointercancel', function(){ dragging=false; });
+
+  document.getElementById('ptReset').addEventListener('click', function(){
+    pointPos = BASEPOS; hideMaru(); renderMul();
+  });
+  document.getElementById('regenMulBtn').addEventListener('click', function(){
+    newMul(); updateOpChips(); clearAll(); renderMul();
+  });
+
+  // --- タブ切りかえ ---
+  var tab1 = document.getElementById('tab1'),
+      tab2 = document.getElementById('tab2'),
+      tab3 = document.getElementById('tab3');
+  function setMode(m){
+    mode = m;
+    tab1.classList.toggle('on', m==='nl1');
+    tab2.classList.toggle('on', m==='nl2');
+    tab3.classList.toggle('on', m==='mul');
+    var isMul = (m==='mul');
+    document.getElementById('nlArea').style.display  = isMul ? 'none' : '';
+    document.getElementById('mulArea').style.display = isMul ? '' : 'none';
+    document.getElementById('rowNL').style.display   = isMul ? 'none' : '';
+    document.getElementById('rowMul').style.display  = isMul ? '' : 'none';
+    document.getElementById('unit').style.display    = isMul ? 'none' : '';
+    clearAll();
+    if(isMul){
+      ans.placeholder = 'れい：91.3';
+      newMul(); updateOpChips(); renderMul();
+    } else {
+      level = (m==='nl1') ? 1 : 2;
+      ans.placeholder = (level===1) ? 'れい：4.297' : 'れい：2.413';
+      regenerate(); render();
+    }
+  }
+  tab1.addEventListener('click', function(){ if(mode!=='nl1') setMode('nl1'); });
+  tab2.addEventListener('click', function(){ if(mode!=='nl2') setMode('nl2'); });
+  tab3.addEventListener('click', function(){ if(mode!=='mul') setMode('mul'); });
+
+  render();
+})();
+</script>
+</body>
+</html>

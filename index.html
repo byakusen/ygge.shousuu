@@ -42,7 +42,7 @@
   .sub{font-size:.92rem;color:#6a7780;margin:0 0 12px;}
 
   /* level switch */
-  .levels{display:flex;gap:8px;margin:0 0 14px;}
+  .levels{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;}
   .levels button{
     background:#eef2f4;color:#5a6772;border:2px solid var(--rule);
     box-shadow:none;padding:9px 18px;border-radius:12px;font-size:.95rem;
@@ -68,6 +68,45 @@
   .nowval{text-align:center;font-weight:800;font-size:1.15rem;color:#3a4750;margin:6px 0 2px;}
   .revealmul{text-align:center;font-weight:900;font-size:1.3rem;color:var(--red);min-height:1.4em;margin:2px 0 0;}
 
+  /* 小数の見方 */
+  #viewnl{display:block;width:100%;height:auto;margin:6px 0 2px;}
+  .viewq{text-align:center;font-weight:800;font-size:1.18rem;line-height:2.1;margin:8px 4px 2px;}
+  .vbl{
+    width:3.4em;font-family:inherit;font-weight:800;font-size:1.05rem;text-align:center;
+    border:2px solid var(--keyline);border-radius:8px;padding:5px 2px;margin:0 .18em;
+    background:#fdfdfb;color:var(--ink);vertical-align:middle;
+  }
+  .vbl:focus{outline:none;border-color:var(--rand);background:#fff;}
+
+  /* 不等号 */
+  .ineqhead{text-align:center;font-weight:800;font-size:1.15rem;margin:6px 0 16px;}
+  .cmp{
+    text-align:center;font-weight:800;font-size:3rem;line-height:1.2;
+    margin:8px 0 18px;font-variant-numeric:tabular-nums;
+  }
+  .cmp .num{color:var(--ink);}
+  .cmp .faint{
+    display:inline-block;color:#cdd5da;
+    background:#eef1f3;border:1px dashed #ccd4da;border-radius:7px;
+    padding:0 .05em;margin-left:.03em;
+  }
+  .cmp .ibox{
+    display:inline-block;min-width:1.05em;margin:0 .28em;
+    border:3px solid var(--keyline);border-radius:10px;color:var(--red);
+    padding:0 .1em;vertical-align:2px;
+  }
+  .cmp .ibox.filled{border-color:var(--red);}
+  .choices{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:4px 0 2px;}
+  .choices button{
+    background:#fff;color:var(--ink);border:2px solid var(--keyline);
+    box-shadow:0 4px 0 #e3e8eb;font-size:1.8rem;font-weight:900;
+    width:86px;padding:8px 0;border-radius:14px;
+  }
+  .choices button:active{box-shadow:0 1px 0 #e3e8eb;}
+  .choices button.on{background:var(--rand);color:#fff;border-color:var(--rand);box-shadow:0 4px 0 rgba(0,0,0,.16);}
+  .ineqfb{text-align:center;font-weight:900;font-size:1.4rem;min-height:1.5em;margin:8px 0 0;}
+  .ineqfb.ok{color:var(--ok);} .ineqfb.ng{color:var(--ng);} .ineqfb.neutral{color:#6a7780;font-size:1.05rem;}
+
   /* number line card */
   .board{
     position:relative;
@@ -78,14 +117,18 @@
   }
   /* はなまる */
   .maru{
-    position:absolute;inset:0;display:none;
+    position:absolute;inset:0;display:flex;
     align-items:center;justify-content:center;
     pointer-events:none;z-index:5;
+    opacity:0;visibility:hidden;
+    transition:opacity .55s ease, visibility .55s ease;
   }
-  .maru.show{display:flex;}
+  .maru.show{opacity:1;visibility:visible;transition:opacity .12s ease, visibility 0s;}
   .maru img{
     width:46%;max-width:240px;height:auto;
     filter:drop-shadow(0 6px 14px rgba(224,36,36,.25));
+  }
+  .maru.show img{
     animation:pop .5s cubic-bezier(.18,1.5,.4,1) both;
   }
   @keyframes pop{
@@ -157,6 +200,8 @@
     button{padding:12px 14px;font-size:.95rem;}
     .mover{font-size:2.5rem;}
     .qmul{font-size:1.05rem;}
+    .viewq{font-size:1.02rem;line-height:2;}
+    .cmp{font-size:2.1rem;}
   }
 </style>
 </head>
@@ -167,7 +212,9 @@
   <div class="levels">
     <button id="tab1" class="on">数直線1</button>
     <button id="tab2">数直線2</button>
+    <button id="tabIneq">不等号</button>
     <button id="tab3">10倍</button>
+    <button id="tab4">小数の見方</button>
   </div>
 
   <div class="board">
@@ -193,6 +240,30 @@
       <p class="revealmul" id="revealmul"></p>
     </div>
 
+    <div id="viewArea" style="display:none">
+      <div class="ops" id="vops">
+        <button data-vp="v1" class="on">あわせた数</button>
+        <button data-vp="v2">○より小さい</button>
+        <button data-vp="v3">0.01が□こ</button>
+        <button data-vp="v4">1・0.1・0.01</button>
+        <button data-vp="rand">ランダム</button>
+      </div>
+      <svg id="viewnl" viewBox="0 0 1040 200" role="img" aria-label="数直線"></svg>
+      <p class="viewq" id="viewq"></p>
+      <p class="revealmul" id="viewreveal"></p>
+    </div>
+
+    <div id="ineqArea" style="display:none">
+      <p class="ineqhead">□ に あてはまる 不等号を えらびましょう。</p>
+      <div class="cmp" id="cmp"></div>
+      <div class="choices" id="ineqChoices">
+        <button data-sym="&gt;">＞</button>
+        <button data-sym="=">＝</button>
+        <button data-sym="&lt;">＜</button>
+      </div>
+      <p class="ineqfb" id="ineqfb"></p>
+    </div>
+
     <div class="maru" id="maru" aria-hidden="true">
       <img src="https://raw.githubusercontent.com/byakusen/hanamaru/refs/heads/main/hanamaru2.png" alt="はなまる">
     </div>
@@ -206,6 +277,16 @@
   </div>
   <div class="row" id="rowMul" style="display:none">
     <button class="b-regen" id="regenMulBtn">再生成（数をかえる）</button>
+  </div>
+  <div class="row" id="rowView" style="display:none">
+    <button class="b-hint" id="vHintBtn">ヒント（3.1・3.2…）</button>
+    <button class="b-rand" id="vRandBtn">ランダム（数をかえる）</button>
+    <button class="b-regen" id="vRegenBtn">再生成（はんいをかえる）</button>
+  </div>
+  <div class="row" id="rowIneq" style="display:none">
+    <button class="b-hint" id="iHideBtn">かくす（うすく）</button>
+    <button class="b-rand" id="iNextBtn">つぎの問題</button>
+    <button class="b-reveal" id="iRevealBtn">こたえを見る</button>
   </div>
 
   <div class="answer">
@@ -250,6 +331,12 @@
   var pointPos = 1;       // いまの小数点の位置＝点の左にある元の数字の数（-1〜3）
   var mulOp = 'x10';      // えらんでいる問題
   var mulRevealed = false;
+
+  // 「小数の見方」モードの状態
+  var viewInt=3, viewD1=4, viewD2=5;   // 3.45
+  var viewVp='v1', viewHint=false, viewRevealed=false;
+  var viewRand=false;          // 「ランダム」見方を選んでいるか
+  var viewExpected=[];
 
   var BASEY = 120, LEFT = 50;
   function rnd(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
@@ -416,44 +503,195 @@
     pointPos = BASEPOS; mulOp='x10'; mulRevealed=false;
   }
 
+  // --- 小数の見方モード ---
+  function vStr(){ return viewInt+'.'+viewD1+viewD2; }              // "3.45"
+  function vUpperStr(){ var u=viewInt + (viewD1+1)/10; return String(Math.round(u*10)/10); } // 3.5 / 4
+
+  function renderViewNL(){
+    var M=50, PX=9, baseY=120, s='';
+    function x(h){ return M + h*PX; }
+    s += '<line x1="'+x(0)+'" y1="'+baseY+'" x2="'+(x(100)+10)+'" y2="'+baseY+'" stroke="var(--line)" stroke-width="3.5" stroke-linecap="round"/>';
+    for(var h=0; h<=100; h++){
+      var major=(h%10===0), medium=(h%5===0);
+      var top = major ? baseY-28 : (medium ? baseY-21 : baseY-14);
+      var sw  = major ? 3 : (medium ? 1.9 : 1.2);
+      s += '<line x1="'+x(h)+'" y1="'+top+'" x2="'+x(h)+'" y2="'+baseY+'" stroke="var(--line)" stroke-width="'+sw+'"/>';
+    }
+    s += '<text x="'+x(0)+'" y="78" text-anchor="middle" font-size="30" font-weight="800" fill="var(--ink)">'+viewInt+'</text>';
+    s += '<text x="'+x(100)+'" y="78" text-anchor="middle" font-size="30" font-weight="800" fill="var(--ink)">'+(viewInt+1)+'</text>';
+    if(viewHint){
+      for(var t=1;t<=9;t++){
+        s += '<text x="'+x(t*10)+'" y="78" text-anchor="middle" font-size="22" font-weight="800" fill="var(--hintlbl)">'+viewInt+'.'+t+'</text>';
+      }
+    }
+    var ax = x(viewD1*10+viewD2);
+    s += '<line x1="'+ax+'" y1="'+(baseY+38)+'" x2="'+ax+'" y2="'+(baseY+8)+'" stroke="var(--arrow)" stroke-width="5" stroke-linecap="round"/>';
+    s += '<path d="M '+(ax-11)+' '+(baseY+16)+' L '+(ax+11)+' '+(baseY+16)+' L '+ax+' '+(baseY+2)+' Z" fill="var(--arrow)"/>';
+    s += '<text x="'+ax+'" y="'+(baseY+62)+'" text-anchor="middle" font-size="26" font-weight="900" fill="var(--arrow)">'+vStr()+'</text>';
+    document.getElementById('viewnl').innerHTML = s;
+  }
+
+  function blankInput(i){ return '<input class="vbl" inputmode="decimal" data-i="'+i+'" autocomplete="off">'; }
+  function viewQuestion(){
+    var v = vStr();
+    if(viewVp==='v1') return { html:v+' は、'+viewInt+' と '+blankInput(0)+' を あわせた数です。',
+                               ans:[Math.round((viewD1*10+viewD2))/100] };          // 0.45
+    if(viewVp==='v2') return { html:v+' は、'+vUpperStr()+' より '+blankInput(0)+' 小さい数です。',
+                               ans:[(10-viewD2)/100] };                              // 0.05
+    if(viewVp==='v3') return { html:v+' は、0.01 を '+blankInput(0)+' こ あつめた数です。',
+                               ans:[viewInt*100+viewD1*10+viewD2] };                 // 345
+    return { html:v+' は、1 を '+viewInt+' こ、0.1 を '+blankInput(0)+' こ、0.01 を '+blankInput(1)+' こ あわせた数です。',
+             ans:[viewD1, viewD2] };                                                 // 4, 5
+  }
+
+  function renderView(){
+    renderViewNL();
+    var q = viewQuestion();
+    viewExpected = q.ans;
+    document.getElementById('viewq').innerHTML = q.html;
+    var blanks = document.querySelectorAll('#viewq .vbl');
+    Array.prototype.forEach.call(blanks, function(b){
+      b.addEventListener('focus', function(){ keyTarget = b; });
+      b.addEventListener('input', function(){ hideMaru(); sanitize(b); });
+    });
+    keyTarget = blanks[0] || ans;
+    document.getElementById('viewreveal').textContent =
+      viewRevealed ? ('こたえ：'+ q.ans.map(String).join('、')) : '';
+  }
+
+  function newViewArrow(){ viewD1=rnd(0,9); viewD2=rnd(1,9); viewRevealed=false; }
+  function newView(){ viewInt=rnd(1,9); newViewArrow(); viewHint=false; }
+  function pickVp(){ return ['v1','v2','v3','v4'][rnd(0,3)]; }
+
+  // --- 不等号モード ---
+  var ineqA=null, ineqB=null, ineqHidden=false, ineqChoice='', ineqRevealed=false, ineqFbMsg='', ineqFbCls='';
+  function ineqVal(x){ return x.N + (x.d1*100 + x.d2*10 + x.d3)/1000; }
+  function ineqCorrect(){ var a=ineqVal(ineqA), b=ineqVal(ineqB); return a>b?'>':(a<b?'<':'='); }
+
+  function newIneq(){
+    var N=rnd(1,19), A={N:N}, B={N:N};
+    if(rnd(0,1)===0){                        // 1/10の位でちがう
+      var t1=rnd(0,9), t2; do{ t2=rnd(0,9); }while(t2===t1);
+      A.d1=t1; B.d1=t2;
+      var aLong = (rnd(0,1)===0);
+      A.len=aLong?3:2; B.len=aLong?2:3;
+      [A,B].forEach(function(x){
+        if(x.len===3){ x.d2=rnd(0,9); x.d3=rnd(1,9); }
+        else { x.d2=rnd(1,9); x.d3=0; }
+      });
+    } else {                                 // 1/100の位でちがう（1/10は同じ）
+      var t=rnd(0,9), h1=rnd(0,9), h2; do{ h2=rnd(0,9); }while(h2===h1);
+      A.d1=B.d1=t; A.d2=h1; B.d2=h2;
+      var aL3 = (h1===0) ? true : (h2===0 ? false : (rnd(0,1)===0));
+      A.len=aL3?3:2; B.len=aL3?2:3;
+      A.d3=(A.len===3)?rnd(1,9):0;
+      B.d3=(B.len===3)?rnd(1,9):0;
+    }
+    ineqA=A; ineqB=B;
+    ineqHidden=false; ineqChoice=''; ineqRevealed=false; ineqFbMsg=''; ineqFbCls='';
+  }
+
+  // ちがいが決まる位（1=1/10, 2=1/100, 3=1/1000）。それより下をうすくする
+  function ineqDecPlace(){
+    if(ineqA.d1!==ineqB.d1) return 1;
+    if(ineqA.d2!==ineqB.d2) return 2;
+    if(ineqA.d3!==ineqB.d3) return 3;
+    return 2;                              // 同じ大きさ（=）は 1/100 まで見せる
+  }
+  function ineqNumHtml(x){
+    if(!ineqHidden){
+      var s = x.N+'.'+x.d1+x.d2; if(x.len===3) s += x.d3;
+      return '<span class="num">'+s+'</span>';
+    }
+    var dp = ineqDecPlace(), ds = ''+x.d1+x.d2+x.d3;   // 3けたにそろえる
+    var vis = ds.slice(0,dp), fai = ds.slice(dp);
+    var h = x.N+'.'+vis + (fai ? '<span class="faint">'+fai+'</span>' : '');
+    return '<span class="num">'+h+'</span>';
+  }
+  function ineqSymHtml(s){ return s==='>'?'&gt;':(s==='<'?'&lt;':'='); }
+  function renderIneq(){
+    var box = ineqRevealed ? ineqCorrect() : ineqChoice;
+    document.getElementById('cmp').innerHTML =
+      ineqNumHtml(ineqA) + '<span class="ibox'+(box?' filled':'')+'">'+(box?ineqSymHtml(box):'&nbsp;')+'</span>' + ineqNumHtml(ineqB);
+    document.getElementById('iHideBtn').classList.toggle('on', ineqHidden);
+    Array.prototype.forEach.call(document.querySelectorAll('#ineqChoices button'), function(b){
+      b.classList.toggle('on', !ineqRevealed && b.getAttribute('data-sym')===ineqChoice);
+    });
+    var el=document.getElementById('ineqfb');
+    if(ineqRevealed){ el.textContent='こたえ：'+ineqCorrect(); el.className='ineqfb neutral'; }
+    else { el.textContent=ineqFbMsg; el.className='ineqfb '+(ineqFbCls||''); }
+  }
+
   // --- こたえ入力 ---
   var ans = document.getElementById('ans');
   var fb  = document.getElementById('fb');
   var maru = document.getElementById('maru');
   var seikai = document.getElementById('seikai');
 
+  var maruTimer = null;
   function showMaru(){
     maru.classList.remove('show');
     void maru.offsetWidth;       // アニメーションを毎回やり直す
     maru.classList.add('show');
     try{ seikai.currentTime = 0; seikai.play(); }catch(e){}
+    if(maruTimer) clearTimeout(maruTimer);
+    maruTimer = setTimeout(function(){ maru.classList.remove('show'); maruTimer=null; }, 1000);
   }
-  function hideMaru(){ maru.classList.remove('show'); }
+  function hideMaru(){
+    if(maruTimer){ clearTimeout(maruTimer); maruTimer=null; }
+    maru.classList.remove('show');
+  }
 
   function setFb(msg, cls){ fb.textContent = msg; fb.className = 'fb ' + (cls||''); }
-  function clearAll(){ ans.value=''; setFb('',''); hideMaru(); }
+  function clearAll(){
+    ans.value='';
+    var bs=document.querySelectorAll('#viewq .vbl');
+    Array.prototype.forEach.call(bs, function(b){ b.value=''; });
+    setFb('',''); hideMaru();
+  }
 
-  ans.addEventListener('input', function(){
-    hideMaru();
-    var v = ans.value.replace(/[^0-9.]/g,'');
+  // テンキーは「いま選ばれている入力欄」に打ち込む（こたえ欄 or 見方の□）
+  var keyTarget = ans;
+  function sanitize(el){
+    var v = el.value.replace(/[^0-9.]/g,'');
     var i = v.indexOf('.');
     if(i !== -1){ v = v.slice(0,i+1) + v.slice(i+1).replace(/\./g,''); }
-    ans.value = v;
-  });
+    el.value = v;
+  }
+  ans.addEventListener('focus', function(){ keyTarget = ans; });
+  ans.addEventListener('input', function(){ hideMaru(); sanitize(ans); });
 
   function press(k){
     hideMaru();
-    if(k==='clear'){ ans.value=''; setFb('',''); return; }
-    if(k==='back'){ ans.value = ans.value.slice(0,-1); return; }
-    if(k==='.'){ if(ans.value.indexOf('.')!==-1) return; if(ans.value==='') ans.value='0'; ans.value += '.'; return; }
-    ans.value += k;
+    var t = keyTarget || ans;
+    if(k==='clear'){ t.value=''; setFb('',''); return; }
+    if(k==='back'){ t.value = t.value.slice(0,-1); return; }
+    if(k==='.'){ if(t.value.indexOf('.')!==-1) return; if(t.value==='') t.value='0'; t.value += '.'; return; }
+    t.value += k;
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll('.pad button'), function(btn){
-    btn.addEventListener('click', function(){ press(btn.getAttribute('data-k')); ans.focus(); });
+  Array.prototype.forEach.call(document.querySelectorAll('.pad button[data-k]'), function(btn){
+    btn.addEventListener('click', function(){ press(btn.getAttribute('data-k')); });
   });
 
+  function checkView(){
+    var blanks = document.querySelectorAll('#viewq .vbl');
+    if(blanks.length===0) return;
+    var allFilled=true, allOk=true;
+    Array.prototype.forEach.call(blanks, function(b){
+      var i=+b.getAttribute('data-i'), raw=b.value.trim();
+      if(raw===''||raw==='.'){ allFilled=false; return; }
+      var v=parseFloat(raw);
+      if(isNaN(v) || Math.abs(v - viewExpected[i]) > 1e-9) allOk=false;
+    });
+    if(!allFilled){ setFb('すうじを いれてね', 'neutral'); return; }
+    if(allOk){ setFb('◯ せいかい！', 'ok'); showMaru(); }
+    else { setFb('✗ もういちど', 'ng'); hideMaru(); }
+  }
+
   function check(){
+    if(mode==='ineq'){ return; }
+    if(mode==='view'){ checkView(); return; }
     var raw = ans.value.trim();
     if(raw==='' || raw==='.'){ setFb('すうじを いれてね', 'neutral'); return; }
     var v = parseFloat(raw);
@@ -489,17 +727,65 @@
   });
   document.getElementById('revealBtn').addEventListener('click', function(){
     if(mode==='mul'){ mulRevealed = !mulRevealed; renderMul(); }
+    else if(mode==='view'){ viewRevealed = !viewRevealed; renderView(); }
     else { revealed = !revealed; render(); }
   });
   document.getElementById('checkBtn').addEventListener('click', check);
   ans.addEventListener('keydown', function(e){ if(e.key==='Enter') check(); });
 
-  // --- 10倍モードの操作 ---
-  function updateOpChips(){
-    Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
-      b.classList.toggle('on', b.getAttribute('data-op')===mulOp);
+  // --- 小数の見方モードの操作 ---
+  function updateVpChips(){
+    Array.prototype.forEach.call(document.querySelectorAll('#vops button'), function(b){
+      var vp=b.getAttribute('data-vp');
+      b.classList.toggle('on', viewRand ? (vp==='rand') : (vp===viewVp));
     });
   }
+  Array.prototype.forEach.call(document.querySelectorAll('#vops button'), function(b){
+    b.addEventListener('click', function(){
+      var vp = b.getAttribute('data-vp');
+      if(vp==='rand'){ viewRand=true; viewVp=pickVp(); }
+      else { viewRand=false; viewVp=vp; }
+      viewRevealed=false;
+      updateVpChips(); clearAll(); renderView();
+    });
+  });
+  var vHintBtn = document.getElementById('vHintBtn');
+  vHintBtn.addEventListener('click', function(){
+    viewHint = !viewHint;
+    vHintBtn.classList.toggle('on', viewHint);
+    renderView();
+  });
+  document.getElementById('vRandBtn').addEventListener('click', function(){
+    newViewArrow(); if(viewRand) viewVp=pickVp();   // ランダム見方なら見方も変える
+    clearAll(); renderView();
+  });
+  document.getElementById('vRegenBtn').addEventListener('click', function(){
+    newView(); if(viewRand) viewVp=pickVp();
+    vHintBtn.classList.remove('on'); updateVpChips(); clearAll(); renderView();
+  });
+
+  // --- 不等号モードの操作 ---
+  Array.prototype.forEach.call(document.querySelectorAll('#ineqChoices button'), function(b){
+    b.addEventListener('click', function(){
+      ineqChoice = b.getAttribute('data-sym'); ineqRevealed = false;
+      var ok = (ineqChoice === ineqCorrect());
+      ineqFbMsg = ok ? '◯ せいかい！' : '✗ もういちど';
+      ineqFbCls = ok ? 'ok' : 'ng';
+      renderIneq();
+      if(ok) showMaru(); else hideMaru();
+    });
+  });
+  document.getElementById('iHideBtn').addEventListener('click', function(){
+    ineqHidden = !ineqHidden; renderIneq();
+  });
+  document.getElementById('iNextBtn').addEventListener('click', function(){
+    newIneq(); hideMaru(); renderIneq();
+  });
+  document.getElementById('iRevealBtn').addEventListener('click', function(){
+    ineqRevealed = !ineqRevealed; renderIneq();
+  });
+
+  // --- 10倍モードの操作 ---
   Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
     b.addEventListener('click', function(){
       mulOp = b.getAttribute('data-op');
@@ -544,22 +830,39 @@
   // --- タブ切りかえ ---
   var tab1 = document.getElementById('tab1'),
       tab2 = document.getElementById('tab2'),
-      tab3 = document.getElementById('tab3');
+      tabIneq = document.getElementById('tabIneq'),
+      tab3 = document.getElementById('tab3'),
+      tab4 = document.getElementById('tab4');
   function setMode(m){
     mode = m;
     tab1.classList.toggle('on', m==='nl1');
     tab2.classList.toggle('on', m==='nl2');
+    tabIneq.classList.toggle('on', m==='ineq');
     tab3.classList.toggle('on', m==='mul');
-    var isMul = (m==='mul');
-    document.getElementById('nlArea').style.display  = isMul ? 'none' : '';
-    document.getElementById('mulArea').style.display = isMul ? '' : 'none';
-    document.getElementById('rowNL').style.display   = isMul ? 'none' : '';
-    document.getElementById('rowMul').style.display  = isMul ? '' : 'none';
-    document.getElementById('unit').style.display    = isMul ? 'none' : '';
+    tab4.classList.toggle('on', m==='view');
+    var isNL=(m==='nl1'||m==='nl2'), isMul=(m==='mul'), isView=(m==='view'), isIneq=(m==='ineq');
+    document.getElementById('nlArea').style.display   = isNL ? '' : 'none';
+    document.getElementById('mulArea').style.display  = isMul ? '' : 'none';
+    document.getElementById('viewArea').style.display = isView ? '' : 'none';
+    document.getElementById('ineqArea').style.display = isIneq ? '' : 'none';
+    document.getElementById('rowNL').style.display    = isNL ? '' : 'none';
+    document.getElementById('rowMul').style.display   = isMul ? '' : 'none';
+    document.getElementById('rowView').style.display  = isView ? '' : 'none';
+    document.getElementById('rowIneq').style.display  = isIneq ? '' : 'none';
+    document.querySelector('.answer').style.display   = isIneq ? 'none' : '';
+    document.getElementById('unit').style.display     = isNL ? '' : 'none';
+    document.getElementById('ans').style.display      = isView ? 'none' : '';
+    document.querySelector('.answer .lbl').textContent = isView ? 'あてはまる数を □ に入れてね' : 'こたえ';
     clearAll();
+    keyTarget = ans;
     if(isMul){
       ans.placeholder = 'れい：91.3';
       newMul(); updateOpChips(); renderMul();
+    } else if(isView){
+      viewRand=false; viewVp='v1'; vHintBtn.classList.remove('on');
+      newView(); updateVpChips(); renderView();
+    } else if(isIneq){
+      newIneq(); renderIneq();
     } else {
       level = (m==='nl1') ? 1 : 2;
       ans.placeholder = (level===1) ? 'れい：4.297' : 'れい：2.413';
@@ -568,7 +871,9 @@
   }
   tab1.addEventListener('click', function(){ if(mode!=='nl1') setMode('nl1'); });
   tab2.addEventListener('click', function(){ if(mode!=='nl2') setMode('nl2'); });
+  tabIneq.addEventListener('click', function(){ if(mode!=='ineq') setMode('ineq'); });
   tab3.addEventListener('click', function(){ if(mode!=='mul') setMode('mul'); });
+  tab4.addEventListener('click', function(){ if(mode!=='view') setMode('view'); });
 
   render();
 })();

@@ -107,6 +107,11 @@
   .ineqfb{text-align:center;font-weight:900;font-size:1.4rem;min-height:1.5em;margin:8px 0 0;}
   .ineqfb.ok{color:var(--ok);} .ineqfb.ng{color:var(--ng);} .ineqfb.neutral{color:#6a7780;font-size:1.05rem;}
 
+  /* kg単位 */
+  .kghead{text-align:center;font-weight:800;font-size:1.12rem;margin:6px 0 4px;}
+  .kgweight{text-align:center;font-weight:900;font-size:2rem;color:var(--ink);margin:2px 0 8px;}
+  #kggrid{display:block;width:100%;max-width:430px;height:auto;margin:0 auto;}
+
   /* number line card */
   .board{
     position:relative;
@@ -211,8 +216,9 @@
   <p class="sub" id="sub">矢印（↑）がさす目もりは何mかな？ 1目もりは 0.001 です。</p>
   <div class="levels">
     <button id="tab1" class="on">数直線1</button>
-    <button id="tab2">数直線2</button>
+    <button id="tabKg">kg単位</button>
     <button id="tabIneq">不等号</button>
+    <button id="tab2">数直線2</button>
     <button id="tab3">10倍</button>
     <button id="tab4">小数の見方</button>
   </div>
@@ -229,6 +235,7 @@
         <button data-op="x100">×100</button>
         <button data-op="d10">1/10</button>
         <button data-op="d100">1/100</button>
+        <button data-op="rand">ランダム</button>
       </div>
       <p class="qmul" id="qmul"></p>
       <div class="mover" id="mover"></div>
@@ -236,7 +243,6 @@
       <div class="moverctl">
         <button id="ptReset">もとにもどす</button>
       </div>
-      <p class="nowval" id="nowval"></p>
       <p class="revealmul" id="revealmul"></p>
     </div>
 
@@ -264,6 +270,13 @@
       <p class="ineqfb" id="ineqfb"></p>
     </div>
 
+    <div id="kgArea" style="display:none">
+      <p class="kghead">下の 重さを kg で あらわしましょう。</p>
+      <p class="kgweight" id="kgweight"></p>
+      <div id="kggrid"></div>
+      <p class="revealmul" id="kgreveal"></p>
+    </div>
+
     <div class="maru" id="maru" aria-hidden="true">
       <img src="https://raw.githubusercontent.com/byakusen/hanamaru/refs/heads/main/hanamaru2.png" alt="はなまる">
     </div>
@@ -275,9 +288,7 @@
     <button class="b-rand" id="randBtn">ランダム（矢印をかえる）</button>
     <button class="b-regen" id="regenBtn">再生成（数をかえる）</button>
   </div>
-  <div class="row" id="rowMul" style="display:none">
-    <button class="b-regen" id="regenMulBtn">再生成（数をかえる）</button>
-  </div>
+  <div class="row" id="rowMul" style="display:none"></div>
   <div class="row" id="rowView" style="display:none">
     <button class="b-hint" id="vHintBtn">ヒント（3.1・3.2…）</button>
     <button class="b-rand" id="vRandBtn">ランダム（数をかえる）</button>
@@ -287,6 +298,10 @@
     <button class="b-hint" id="iHideBtn">かくす（うすく）</button>
     <button class="b-rand" id="iNextBtn">つぎの問題</button>
     <button class="b-reveal" id="iRevealBtn">こたえを見る</button>
+  </div>
+  <div class="row" id="rowKg" style="display:none">
+    <button class="b-hint" id="kgHintBtn">ヒント（マスに数を入れる）</button>
+    <button class="b-rand" id="kgNextBtn">つぎの問題</button>
   </div>
 
   <div class="answer">
@@ -331,6 +346,7 @@
   var pointPos = 1;       // いまの小数点の位置＝点の左にある元の数字の数（-1〜3）
   var mulOp = 'x10';      // えらんでいる問題
   var mulRevealed = false;
+  var mulRand = false;    // 「ランダム」を選んでいるか
 
   // 「小数の見方」モードの状態
   var viewInt=3, viewD1=4, viewD2=5;   // 3.45
@@ -492,7 +508,6 @@
     document.getElementById('qmul').textContent =
       baseStr+' を '+opLabel(mulOp)+' '+(opIsMul(mulOp)?'した':'にした')+'数は？';
     document.getElementById('mover').innerHTML = buildMoverSVG();
-    document.getElementById('nowval').textContent = 'いまの数：'+cleanNum(plainAt(pointPos));
     document.getElementById('revealmul').textContent =
       mulRevealed ? ('こたえ：'+cleanNum(plainAt(targetPos(mulOp)))) : '';
   }
@@ -622,6 +637,39 @@
     else { el.textContent=ineqFbMsg; el.className='ineqfb '+(ineqFbCls||''); }
   }
 
+  // --- kg単位モード ---
+  var kgKg=3, kgG=450, kgHint=false, kgRevealed=false;
+  function kgAnswer(){ return kgKg + kgG/1000; }
+  function kgWeightStr(){ return (kgKg>0) ? (kgKg+'kg'+kgG+'g') : (kgG+'g'); }
+  function newKg(){ kgKg=rnd(0,9); kgG=rnd(1,999); kgHint=false; kgRevealed=false; }
+
+  function buildKgGrid(){
+    var x0=50,y0=20,W=80,H=90,yb=y0+H, s='<svg viewBox="0 0 420 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:430px;height:auto">';
+    s += '<rect x="'+x0+'" y="'+y0+'" width="'+(4*W)+'" height="'+H+'" fill="none" stroke="var(--line)" stroke-width="3"/>';
+    for(var i=1;i<4;i++){ var xv=x0+i*W;
+      s += '<line x1="'+xv+'" y1="'+y0+'" x2="'+xv+'" y2="'+yb+'" stroke="var(--line)" stroke-width="'+(i===1?3:2)+'"/>'; }
+    var dx=x0+W;                                  // 小数点（kgとgの間）
+    s += '<line x1="'+dx+'" y1="'+yb+'" x2="'+dx+'" y2="'+(yb+46)+'" stroke="var(--ink)" stroke-width="3"/>';
+    s += '<circle cx="'+dx+'" cy="'+yb+'" r="7" fill="var(--ink)"/>';
+    s += '<text x="'+(x0+W/2)+'" y="'+(yb+40)+'" text-anchor="middle" font-size="30" font-weight="800" fill="var(--ink)">kg</text>';
+    s += '<text x="'+(x0+3.5*W)+'" y="'+(yb+40)+'" text-anchor="middle" font-size="30" font-weight="800" fill="var(--ink)">g</text>';
+    if(kgHint){
+      var d=[kgKg, Math.floor(kgG/100), Math.floor(kgG/10)%10, kgG%10];
+      for(var c=0;c<4;c++){
+        s += '<text x="'+(x0+c*W+W/2)+'" y="'+(y0+64)+'" text-anchor="middle" font-size="52" font-weight="800" fill="var(--arrow)">'+d[c]+'</text>';
+      }
+    }
+    s += '</svg>';
+    return s;
+  }
+  function renderKg(){
+    document.getElementById('kgweight').textContent = kgWeightStr();
+    document.getElementById('kggrid').innerHTML = buildKgGrid();
+    document.getElementById('kgHintBtn').classList.toggle('on', kgHint);
+    document.getElementById('kgreveal').textContent =
+      kgRevealed ? ('こたえ：'+ (Math.round(kgAnswer()*1000)/1000) +' kg') : '';
+  }
+
   // --- こたえ入力 ---
   var ans = document.getElementById('ans');
   var fb  = document.getElementById('fb');
@@ -696,7 +744,7 @@
     if(raw==='' || raw==='.'){ setFb('すうじを いれてね', 'neutral'); return; }
     var v = parseFloat(raw);
     if(isNaN(v)){ setFb('すうじを いれてね', 'neutral'); return; }
-    var target = (mode==='mul') ? mulCorrect() : arrowTh/1000;
+    var target = (mode==='mul') ? mulCorrect() : (mode==='kg') ? kgAnswer() : arrowTh/1000;
     if(Math.abs(v - target) < 1e-9){ setFb('◯ せいかい！', 'ok'); showMaru(); }
     else { setFb('✗ もういちど', 'ng'); hideMaru(); }
   }
@@ -728,6 +776,7 @@
   document.getElementById('revealBtn').addEventListener('click', function(){
     if(mode==='mul'){ mulRevealed = !mulRevealed; renderMul(); }
     else if(mode==='view'){ viewRevealed = !viewRevealed; renderView(); }
+    else if(mode==='kg'){ kgRevealed = !kgRevealed; renderKg(); }
     else { revealed = !revealed; render(); }
   });
   document.getElementById('checkBtn').addEventListener('click', check);
@@ -785,11 +834,28 @@
     ineqRevealed = !ineqRevealed; renderIneq();
   });
 
+  // --- kg単位モードの操作 ---
+  document.getElementById('kgHintBtn').addEventListener('click', function(){
+    kgHint = !kgHint; renderKg();
+  });
+  document.getElementById('kgNextBtn').addEventListener('click', function(){
+    newKg(); clearAll(); renderKg();
+  });
+
   // --- 10倍モードの操作 ---
+  function pickMulOp(){ return ['x10','x100','d10','d100'][rnd(0,3)]; }
+  function updateOpChips(){
+    Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
+      var op=b.getAttribute('data-op');
+      b.classList.toggle('on', mulRand ? (op==='rand') : (op===mulOp));
+    });
+  }
   Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
     b.addEventListener('click', function(){
-      mulOp = b.getAttribute('data-op');
-      pointPos = BASEPOS; mulRevealed = false;
+      var op = b.getAttribute('data-op');
+      newMul();                          // ボタンを押すたびに新しい数（ランダム）にする
+      if(op==='rand'){ mulRand=true; mulOp=pickMulOp(); }
+      else { mulRand=false; mulOp=op; }
       updateOpChips(); clearAll(); renderMul();
     });
   });
@@ -823,12 +889,10 @@
   document.getElementById('ptReset').addEventListener('click', function(){
     pointPos = BASEPOS; hideMaru(); renderMul();
   });
-  document.getElementById('regenMulBtn').addEventListener('click', function(){
-    newMul(); updateOpChips(); clearAll(); renderMul();
-  });
 
   // --- タブ切りかえ ---
   var tab1 = document.getElementById('tab1'),
+      tabKg = document.getElementById('tabKg'),
       tab2 = document.getElementById('tab2'),
       tabIneq = document.getElementById('tabIneq'),
       tab3 = document.getElementById('tab3'),
@@ -836,33 +900,42 @@
   function setMode(m){
     mode = m;
     tab1.classList.toggle('on', m==='nl1');
+    tabKg.classList.toggle('on', m==='kg');
     tab2.classList.toggle('on', m==='nl2');
     tabIneq.classList.toggle('on', m==='ineq');
     tab3.classList.toggle('on', m==='mul');
     tab4.classList.toggle('on', m==='view');
-    var isNL=(m==='nl1'||m==='nl2'), isMul=(m==='mul'), isView=(m==='view'), isIneq=(m==='ineq');
+    var isNL=(m==='nl1'||m==='nl2'), isMul=(m==='mul'), isView=(m==='view'), isIneq=(m==='ineq'), isKg=(m==='kg');
     document.getElementById('nlArea').style.display   = isNL ? '' : 'none';
+    document.getElementById('kgArea').style.display   = isKg ? '' : 'none';
     document.getElementById('mulArea').style.display  = isMul ? '' : 'none';
     document.getElementById('viewArea').style.display = isView ? '' : 'none';
     document.getElementById('ineqArea').style.display = isIneq ? '' : 'none';
     document.getElementById('rowNL').style.display    = isNL ? '' : 'none';
+    document.getElementById('rowKg').style.display    = isKg ? '' : 'none';
     document.getElementById('rowMul').style.display   = isMul ? '' : 'none';
     document.getElementById('rowView').style.display  = isView ? '' : 'none';
     document.getElementById('rowIneq').style.display  = isIneq ? '' : 'none';
     document.querySelector('.answer').style.display   = isIneq ? 'none' : '';
-    document.getElementById('unit').style.display     = isNL ? '' : 'none';
+    var unitEl = document.getElementById('unit');
+    if(isNL){ unitEl.textContent='m'; unitEl.style.display=''; }
+    else if(isKg){ unitEl.textContent='kg'; unitEl.style.display=''; }
+    else { unitEl.style.display='none'; }
     document.getElementById('ans').style.display      = isView ? 'none' : '';
     document.querySelector('.answer .lbl').textContent = isView ? 'あてはまる数を □ に入れてね' : 'こたえ';
     clearAll();
     keyTarget = ans;
     if(isMul){
       ans.placeholder = 'れい：91.3';
-      newMul(); updateOpChips(); renderMul();
+      mulRand=false; newMul(); updateOpChips(); renderMul();
     } else if(isView){
       viewRand=false; viewVp='v1'; vHintBtn.classList.remove('on');
       newView(); updateVpChips(); renderView();
     } else if(isIneq){
       newIneq(); renderIneq();
+    } else if(isKg){
+      ans.placeholder = 'れい：3.45';
+      newKg(); renderKg();
     } else {
       level = (m==='nl1') ? 1 : 2;
       ans.placeholder = (level===1) ? 'れい：4.297' : 'れい：2.413';
@@ -870,6 +943,7 @@
     }
   }
   tab1.addEventListener('click', function(){ if(mode!=='nl1') setMode('nl1'); });
+  tabKg.addEventListener('click', function(){ if(mode!=='kg') setMode('kg'); });
   tab2.addEventListener('click', function(){ if(mode!=='nl2') setMode('nl2'); });
   tabIneq.addEventListener('click', function(){ if(mode!=='ineq') setMode('ineq'); });
   tab3.addEventListener('click', function(){ if(mode!=='mul') setMode('mul'); });

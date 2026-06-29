@@ -302,6 +302,7 @@
   <div class="row" id="rowKg" style="display:none">
     <button class="b-hint" id="kgHintBtn">ヒント（マスに数を入れる）</button>
     <button class="b-rand" id="kgNextBtn">つぎの問題</button>
+    <button class="b-regen" id="kgHardBtn">むずかしい</button>
   </div>
 
   <div class="answer">
@@ -640,8 +641,25 @@
   // --- kg単位モード ---
   var kgKg=3, kgG=450, kgHint=false, kgRevealed=false;
   function kgAnswer(){ return kgKg + kgG/1000; }
+  function kgCanonical(){ return String(Math.round(kgAnswer()*1000)/1000); }   // 余分な0なしの形（例 8.13）
   function kgWeightStr(){ return (kgKg>0) ? (kgKg+'kg'+kgG+'g') : (kgG+'g'); }
   function newKg(){ kgKg=rnd(0,9); kgG=rnd(1,999); kgHint=false; kgRevealed=false; }
+  function newKgHard(){
+    kgKg = rnd(0,9);
+    if(rnd(0,1)===0){ kgG = rnd(1,99); }                 // 空位の0（例 12g→0.012）
+    else { kgG = rnd(1,9)*100 + rnd(0,9)*10; }            // 末尾の0（例 130g→0.13, 100g→0.1）
+    kgHint=false; kgRevealed=false;
+  }
+  function checkKg(){
+    var raw = ans.value.trim();
+    if(raw==='' || raw==='.'){ setFb('すうじを いれてね', 'neutral'); return; }
+    if(isNaN(parseFloat(raw))){ setFb('すうじを いれてね', 'neutral'); return; }
+    var norm = (raw.charAt(0)==='.') ? ('0'+raw) : raw;   // 「.075」も「0.075」とみなす
+    if(norm === kgCanonical()){ setFb('◯ せいかい！', 'ok'); showMaru(); }
+    else if(Math.abs(parseFloat(raw) - kgAnswer()) < 1e-9){
+      setFb('✗ おしい！ うしろの 0 は いりません', 'ng'); hideMaru();   // 値は合うが0が余分
+    } else { setFb('✗ もういちど', 'ng'); hideMaru(); }
+  }
 
   function buildKgGrid(){
     var x0=50,y0=20,W=80,H=90,yb=y0+H, s='<svg viewBox="0 0 420 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:430px;height:auto">';
@@ -740,11 +758,12 @@
   function check(){
     if(mode==='ineq'){ return; }
     if(mode==='view'){ checkView(); return; }
+    if(mode==='kg'){ checkKg(); return; }
     var raw = ans.value.trim();
     if(raw==='' || raw==='.'){ setFb('すうじを いれてね', 'neutral'); return; }
     var v = parseFloat(raw);
     if(isNaN(v)){ setFb('すうじを いれてね', 'neutral'); return; }
-    var target = (mode==='mul') ? mulCorrect() : (mode==='kg') ? kgAnswer() : arrowTh/1000;
+    var target = (mode==='mul') ? mulCorrect() : arrowTh/1000;
     if(Math.abs(v - target) < 1e-9){ setFb('◯ せいかい！', 'ok'); showMaru(); }
     else { setFb('✗ もういちど', 'ng'); hideMaru(); }
   }
@@ -840,6 +859,9 @@
   });
   document.getElementById('kgNextBtn').addEventListener('click', function(){
     newKg(); clearAll(); renderKg();
+  });
+  document.getElementById('kgHardBtn').addEventListener('click', function(){
+    newKgHard(); clearAll(); renderKg();
   });
 
   // --- 10倍モードの操作 ---

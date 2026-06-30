@@ -239,7 +239,7 @@
       </div>
       <p class="qmul" id="qmul"></p>
       <div class="mover" id="mover"></div>
-      <p class="draghint">小数点（<span style="color:var(--red);font-weight:900">.</span>）を 左右に ドラッグ してね</p>
+      <p class="draghint" id="draghint">小数点（<span style="color:var(--red);font-weight:900">.</span>）を 左右に ドラッグ してね</p>
       <div class="moverctl">
         <button id="ptReset">もとにもどす</button>
       </div>
@@ -348,6 +348,11 @@
   var mulOp = 'x10';      // えらんでいる問題
   var mulRevealed = false;
   var mulRand = false;    // 「ランダム」を選んでいるか
+  var mvOffset = 0;       // 2けたの数を中央に寄せるための横ずらし
+  var mulIsInteger = false; // いまの問題が整数スタートか（割り算だけ）
+  var mulPlaced = true;   // 整数問題で「小数点をつけた」か（整数以外はつねにtrue）
+  var mulPointShown = false; // 整数問題で、候補の点をもう置いたか（最初はfalse＝点なし）
+  var mulMsg = '';        // 点をつける段階のひとことメッセージ
 
   // 「小数の見方」モードの状態
   var viewInt=3, viewD1=4, viewD2=5;   // 3.45
@@ -459,29 +464,54 @@
   function opIsMul(op){ return op==='x10' || op==='x100'; }
   function targetPos(op){ return BASEPOS + opShift(op); }   // 正かいの点の位置
 
-  // 数の列レイアウト（固定）：col0,col1=左の0用 / col2,3,4=元の数字9,1,3
-  var MV_M = 40, MV_W = 64, MV_VW = 400;
-  function colCenter(c){ return MV_M + c*MV_W + MV_W/2; }
-  function dotX(pos){ return MV_M + (pos+2)*MV_W; }         // pos の小数点のx
+  // 数の列レイアウト（固定）：col0,1=左の0 / col2,3,4=元の数字 / col5,6=右の0
+  var MV_M = 26, MV_W = 62, MV_VW = 480;
+  function colCenter(c){ return MV_M + c*MV_W + MV_W/2 + mvOffset; }
+  function dotX(pos){ return MV_M + (pos+2)*MV_W + mvOffset; }   // pos の小数点x
 
   // pos の数を文字列で（値の判定・表示用）
   function plainAt(pos){
-    if(pos>=1){ var ip=digits.slice(0,pos), fp=digits.slice(pos); return ip + (fp?('.'+fp):''); }
+    var LEN = digits.length;
+    if(pos>=1){
+      if(pos<=LEN){ var ip=digits.slice(0,pos), fp=digits.slice(pos); return ip + (fp?('.'+fp):''); }
+      var z=''; for(var j=0;j<pos-LEN;j++) z+='0'; return digits + z;   // 整数＋末尾の0（×10/×100）
+    }
     var zeros=-pos, fill=''; for(var i=0;i<zeros;i++) fill+='0'; return '0.'+fill+digits;
   }
   function cleanNum(p){ var v=parseFloat(p); return isNaN(v)?'':String(v); }
   function mulCorrect(){ return parseFloat(plainAt(targetPos(mulOp))); }
 
   function dtext(cx, ch, fill){
-    return '<text x="'+cx+'" y="64" text-anchor="middle" font-size="58" font-weight="800" fill="'+fill+'">'+ch+'</text>';
+    return '<text x="'+cx+'" y="64" text-anchor="middle" font-size="56" font-weight="800" fill="'+fill+'">'+ch+'</text>';
   }
   function buildMoverSVG(){
-    var s = '<svg viewBox="0 0 '+MV_VW+' 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:430px;height:auto">';
-    // 左の0（割り算のとき）
-    if(pointPos===0){ s += dtext(colCenter(1),'0','#c2cace'); }
-    if(pointPos===-1){ s += dtext(colCenter(0),'0','#c2cace') + dtext(colCenter(1),'0','#c2cace'); }
+    var LEN = digits.length;
+    var placing = (mulIsInteger && !mulPlaced);   // 整数問題で、まだ点をつけていない段階
+    var s = '<svg viewBox="0 0 '+MV_VW+' 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:460px;height:auto">';
+    // 左の0（割り算で点が左に出るとき）。点をつける段階では出さない
+    if(!placing){
+      if(pointPos<=0){ s += dtext(colCenter(1),'0','#c2cace'); }
+      if(pointPos<=-1){ s += dtext(colCenter(0),'0','#c2cace'); }
+    }
     // 元の数字（いつも同じ位置・等間かく）
-    for(var k=0;k<digits.length;k++){ s += dtext(colCenter(k+2), digits.charAt(k), 'var(--ink)'); }
+    for(var k=0;k<LEN;k++){ s += dtext(colCenter(k+2), digits.charAt(k), 'var(--ink)'); }
+
+    if(placing){
+      // 点をつける段階：点がつけられる場所を「あきスロット」で示す（1..LEN）。
+      // まだ選んでいなければ点は出さない。えらんだ場所だけ赤い点。
+      for(var sp=1; sp<=LEN; sp++){
+        if(mulPointShown && sp===pointPos){
+          s += '<circle cx="'+dotX(sp)+'" cy="60" r="6" fill="var(--red)"/>';
+        } else {
+          s += '<circle cx="'+dotX(sp)+'" cy="60" r="6" fill="none" stroke="#b9c2c7" stroke-width="2" stroke-dasharray="3 3"/>';
+        }
+      }
+      s += '</svg>';
+      return s;
+    }
+
+    // 右の0（かけ算で点が右に出るとき）
+    for(var j=0; j < pointPos-LEN; j++){ s += dtext(colCenter(2+LEN+j),'0','#c2cace'); }
     // もとの小数点（うす灰色）
     s += '<circle cx="'+dotX(BASEPOS)+'" cy="60" r="5" fill="#c2cace"/>';
     // 動いたぶんだけ「10倍」または「1/10」の弧を1つずつ
@@ -505,18 +535,58 @@
   }
 
   function renderMul(){
-    var baseStr = plainAt(BASEPOS);                 // "9.13" / "1.35"
+    var baseStr = plainAt(BASEPOS);                 // "6.74" / "63.8" / "638" / "89"
     document.getElementById('qmul').textContent =
       baseStr+' を '+opLabel(mulOp)+' '+(opIsMul(mulOp)?'した':'にした')+'数は？';
     document.getElementById('mover').innerHTML = buildMoverSVG();
-    document.getElementById('revealmul').textContent =
-      mulRevealed ? ('こたえ：'+cleanNum(plainAt(targetPos(mulOp)))) : '';
+    var dh = document.getElementById('draghint');
+    if(dh){
+      if(mulIsInteger && !mulPlaced){
+        dh.innerHTML = '小数点は どこに つく？　点（<span style="color:var(--red);font-weight:900">.</span>）が つく ところ を タップ（ドラッグ）で えらんでね。';
+      } else {
+        dh.innerHTML = '小数点（<span style="color:var(--red);font-weight:900">.</span>）を 左右に ドラッグ してね';
+      }
+    }
+    var rv = document.getElementById('revealmul');
+    if(mulIsInteger && !mulPlaced && !mulRevealed){
+      rv.textContent = mulMsg;
+    } else {
+      rv.textContent = mulRevealed ? ('こたえ：'+cleanNum(plainAt(targetPos(mulOp)))) : '';
+    }
   }
 
-  function newMul(){
-    var d0=rnd(0,9), d1=rnd(1,9), d2=rnd(1,9);      // 一の位は0〜9（0だけではない）
-    digits = ''+d0+d1+d2;
-    pointPos = BASEPOS; mulOp='x10'; mulRevealed=false;
+  // 数の作りかた（けた数とスタート位置）
+  //  ・×10/×100：整数スタートなし。「先頭に0（0.xx/0.xxx）」を多めに
+  //  ・1/10/1/100：整数（23・89・638）も小数も。2けたと3けたを半々で
+  function newMul(op){
+    op = op || mulOp;
+    var isDiv = (op==='d10' || op==='d100');
+    var len, basepos, r;
+    if(isDiv){
+      len = (rnd(0,1)===0) ? 2 : 3;                  // 2けた／3けた を半々
+      if(len===2){
+        basepos = (rnd(0,9)<7) ? 2 : 1;              // 89(整数)70% / 8.9 30%
+      } else {
+        r = rnd(0,9);
+        basepos = (r<5) ? 3 : (r<8 ? 2 : 1);         // 638(整数)50% / 63.8 30% / 6.38 20%
+      }
+    } else {
+      len = (rnd(0,2)===0) ? 2 : 3;                  // 2けた約1/3・3けた約2/3
+      r = rnd(0,9);
+      if(len===2){
+        basepos = (r<7) ? 0 : 1;                     // 0.89 70% / 8.9 30%（整数なし）
+      } else {
+        basepos = (r<6) ? 0 : (r<9 ? 1 : 2);         // 0.638 60% / 6.38 30% / 63.8 10%（整数なし）
+      }
+    }
+    var ds=''; for(var i=0;i<len;i++){ ds += rnd(1,9); } // 各けた1〜9（先頭0や空位0を避ける）
+    digits = ds;
+    mvOffset = (len===2) ? (MV_W/2) : 0;             // 2けたは中央に寄せる
+    BASEPOS = basepos;
+    mulIsInteger = (BASEPOS === len);               // 点が右はし＝整数スタート（割り算だけ）
+    if(mulIsInteger){ pointPos = len; mulPlaced = false; mulPointShown = false; mulMsg = ''; }
+    else { pointPos = BASEPOS; mulPlaced = true; mulPointShown = false; mulMsg = ''; }
+    mulRevealed = false;
   }
 
   // --- 小数の見方モード ---
@@ -875,9 +945,10 @@
   Array.prototype.forEach.call(document.querySelectorAll('#ops button'), function(b){
     b.addEventListener('click', function(){
       var op = b.getAttribute('data-op');
-      newMul();                          // ボタンを押すたびに新しい数（ランダム）にする
-      if(op==='rand'){ mulRand=true; mulOp=pickMulOp(); }
-      else { mulRand=false; mulOp=op; }
+      if(op==='rand'){ mulRand=true; op=pickMulOp(); }
+      else { mulRand=false; }
+      mulOp = op;
+      newMul(op);                        // 押すたびに新しい数。割り算なら整数スタート多め
       updateOpChips(); clearAll(); renderMul();
     });
   });
@@ -889,11 +960,25 @@
     var svg = mover.querySelector('svg'); if(!svg) return null;
     var r = svg.getBoundingClientRect();
     var x = (e.clientX - r.left) * (MV_VW / r.width);
-    var p = Math.round((x - MV_M)/MV_W) - 2;
-    return Math.max(-1, Math.min(3, p));
+    var p = Math.round((x - MV_M - mvOffset)/MV_W) - 2;
+    if(mulIsInteger && !mulPlaced){
+      return Math.max(1, Math.min(digits.length, p));   // 点をつける段階：数字のあいだ〜右はし
+    }
+    return Math.max(BASEPOS-2, Math.min(BASEPOS+2, p));
   }
   function applyPos(p){
-    if(p!==null && p!==pointPos){ pointPos=p; hideMaru(); renderMul(); }
+    if(p===null) return;
+    if(mulIsInteger && !mulPlaced){
+      if(p!==pointPos || !mulPointShown){ pointPos=p; mulPointShown=true; }
+      if(pointPos===digits.length){                     // 右はしを選んだら確定
+        mulPlaced=true; mulPointShown=false; mulMsg=''; dragging=false; renderMul();
+      } else {
+        mulMsg='ちがうよ。整数の 小数点は いちばん 右はし（一のくらいの 右）だよ。';
+        renderMul();
+      }
+      return;
+    }
+    if(p!==pointPos){ pointPos=p; hideMaru(); renderMul(); }
   }
   mover.addEventListener('pointerdown', function(e){
     dragging = true;
@@ -909,7 +994,9 @@
   mover.addEventListener('pointercancel', function(){ dragging=false; });
 
   document.getElementById('ptReset').addEventListener('click', function(){
-    pointPos = BASEPOS; hideMaru(); renderMul();
+    if(mulIsInteger){ mulPlaced=false; mulPointShown=false; mulMsg=''; pointPos=digits.length; }
+    else { pointPos = BASEPOS; }
+    hideMaru(); renderMul();
   });
 
   // --- タブ切りかえ ---
@@ -949,7 +1036,7 @@
     keyTarget = ans;
     if(isMul){
       ans.placeholder = 'れい：91.3';
-      mulRand=false; newMul(); updateOpChips(); renderMul();
+      mulRand=false; mulOp='x10'; newMul('x10'); updateOpChips(); renderMul();
     } else if(isView){
       viewRand=false; viewVp='v1'; vHintBtn.classList.remove('on');
       newView(); updateVpChips(); renderView();

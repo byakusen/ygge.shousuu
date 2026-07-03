@@ -142,6 +142,19 @@
     100%{transform:scale(1) rotate(0);opacity:1;}
   }
   @media(prefers-reduced-motion:reduce){ .maru img{animation:none;} }
+  /* ばつ（まちがい）※はなまると同じ動き・音なし */
+  .batsu{
+    position:absolute;inset:0;display:flex;
+    align-items:center;justify-content:center;
+    pointer-events:none;z-index:5;
+    opacity:0;visibility:hidden;
+    transition:opacity .55s ease, visibility .55s ease;
+  }
+  .batsu.show{opacity:1;visibility:visible;transition:opacity .12s ease, visibility 0s;}
+  .batsu svg{ width:40%;max-width:200px;height:auto;
+    filter:drop-shadow(0 6px 14px rgba(224,36,36,.25)); }
+  .batsu.show svg{ animation:pop .5s cubic-bezier(.18,1.5,.4,1) both; }
+  @media(prefers-reduced-motion:reduce){ .batsu svg{animation:none;} }
   svg{display:block;width:100%;height:auto;}
   .question{
     text-align:center;font-weight:800;font-size:1.08rem;
@@ -279,6 +292,12 @@
 
     <div class="maru" id="maru" aria-hidden="true">
       <img src="https://raw.githubusercontent.com/byakusen/hanamaru/refs/heads/main/hanamaru2.png" alt="はなまる">
+    </div>
+    <div class="batsu" id="batsu" aria-hidden="true">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <line x1="24" y1="24" x2="76" y2="76" stroke="var(--red)" stroke-width="15" stroke-linecap="round"/>
+        <line x1="76" y1="24" x2="24" y2="76" stroke="var(--red)" stroke-width="15" stroke-linecap="round"/>
+      </svg>
     </div>
     <audio id="seikai" src="https://github.com/byakusen/gogelige.quiz/raw/refs/heads/main/quiz_seikai.mp3" preload="auto"></audio>
   </div>
@@ -638,7 +657,8 @@
     var blanks = document.querySelectorAll('#viewq .vbl');
     Array.prototype.forEach.call(blanks, function(b){
       b.addEventListener('focus', function(){ keyTarget = b; });
-      b.addEventListener('input', function(){ hideMaru(); sanitize(b); });
+      b.addEventListener('input', function(){ hideMaru(); hideBatsu(); sanitize(b); });
+      b.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); check(); } });
     });
     keyTarget = blanks[0] || ans;
     document.getElementById('viewreveal').textContent =
@@ -727,8 +747,8 @@
     var norm = (raw.charAt(0)==='.') ? ('0'+raw) : raw;   // 「.075」も「0.075」とみなす
     if(norm === kgCanonical()){ setFb('◯ せいかい！', 'ok'); showMaru(); }
     else if(Math.abs(parseFloat(raw) - kgAnswer()) < 1e-9){
-      setFb('✗ おしい！ うしろの 0 は いりません', 'ng'); hideMaru();   // 値は合うが0が余分
-    } else { setFb('✗ もういちど', 'ng'); hideMaru(); }
+      setFb('✗ おしい！ うしろの 0 は いりません', 'ng'); showBatsu();   // 値は合うが0が余分
+    } else { setFb('✗ もういちど', 'ng'); showBatsu(); }
   }
 
   function buildKgGrid(){
@@ -763,9 +783,11 @@
   var fb  = document.getElementById('fb');
   var maru = document.getElementById('maru');
   var seikai = document.getElementById('seikai');
+  var batsu = document.getElementById('batsu');
 
   var maruTimer = null;
   function showMaru(){
+    hideBatsu();
     maru.classList.remove('show');
     void maru.offsetWidth;       // アニメーションを毎回やり直す
     maru.classList.add('show');
@@ -777,13 +799,26 @@
     if(maruTimer){ clearTimeout(maruTimer); maruTimer=null; }
     maru.classList.remove('show');
   }
+  var batsuTimer = null;
+  function showBatsu(){            // まちがい：はなまると同じ動き・音なし・1秒で消える
+    hideMaru();
+    batsu.classList.remove('show');
+    void batsu.offsetWidth;
+    batsu.classList.add('show');
+    if(batsuTimer) clearTimeout(batsuTimer);
+    batsuTimer = setTimeout(function(){ batsu.classList.remove('show'); batsuTimer=null; }, 1000);
+  }
+  function hideBatsu(){
+    if(batsuTimer){ clearTimeout(batsuTimer); batsuTimer=null; }
+    batsu.classList.remove('show');
+  }
 
   function setFb(msg, cls){ fb.textContent = msg; fb.className = 'fb ' + (cls||''); }
   function clearAll(){
     ans.value='';
     var bs=document.querySelectorAll('#viewq .vbl');
     Array.prototype.forEach.call(bs, function(b){ b.value=''; });
-    setFb('',''); hideMaru();
+    setFb('',''); hideMaru(); hideBatsu();
   }
 
   // テンキーは「いま選ばれている入力欄」に打ち込む（こたえ欄 or 見方の□）
@@ -795,10 +830,10 @@
     el.value = v;
   }
   ans.addEventListener('focus', function(){ keyTarget = ans; });
-  ans.addEventListener('input', function(){ hideMaru(); sanitize(ans); });
+  ans.addEventListener('input', function(){ hideMaru(); hideBatsu(); sanitize(ans); });
 
   function press(k){
-    hideMaru();
+    hideMaru(); hideBatsu();
     var t = keyTarget || ans;
     if(k==='clear'){ t.value=''; setFb('',''); return; }
     if(k==='back'){ t.value = t.value.slice(0,-1); return; }
@@ -822,7 +857,7 @@
     });
     if(!allFilled){ setFb('すうじを いれてね', 'neutral'); return; }
     if(allOk){ setFb('◯ せいかい！', 'ok'); showMaru(); }
-    else { setFb('✗ もういちど', 'ng'); hideMaru(); }
+    else { setFb('✗ もういちど', 'ng'); showBatsu(); }
   }
 
   function check(){
@@ -835,7 +870,7 @@
     if(isNaN(v)){ setFb('すうじを いれてね', 'neutral'); return; }
     var target = (mode==='mul') ? mulCorrect() : arrowTh/1000;
     if(Math.abs(v - target) < 1e-9){ setFb('◯ せいかい！', 'ok'); showMaru(); }
-    else { setFb('✗ もういちど', 'ng'); hideMaru(); }
+    else { setFb('✗ もういちど', 'ng'); showBatsu(); }
   }
 
   // --- ヒントボタン（レベルで段階がちがう）---
@@ -910,14 +945,14 @@
       ineqFbMsg = ok ? '◯ せいかい！' : '✗ もういちど';
       ineqFbCls = ok ? 'ok' : 'ng';
       renderIneq();
-      if(ok) showMaru(); else hideMaru();
+      if(ok) showMaru(); else showBatsu();
     });
   });
   document.getElementById('iHideBtn').addEventListener('click', function(){
     ineqHidden = !ineqHidden; renderIneq();
   });
   document.getElementById('iNextBtn').addEventListener('click', function(){
-    newIneq(); hideMaru(); renderIneq();
+    newIneq(); hideMaru(); hideBatsu(); renderIneq();
   });
   document.getElementById('iRevealBtn').addEventListener('click', function(){
     ineqRevealed = !ineqRevealed; renderIneq();
@@ -978,7 +1013,7 @@
       }
       return;
     }
-    if(p!==pointPos){ pointPos=p; hideMaru(); renderMul(); }
+    if(p!==pointPos){ pointPos=p; hideMaru(); hideBatsu(); renderMul(); }
   }
   mover.addEventListener('pointerdown', function(e){
     dragging = true;
@@ -996,7 +1031,7 @@
   document.getElementById('ptReset').addEventListener('click', function(){
     if(mulIsInteger){ mulPlaced=false; mulPointShown=false; mulMsg=''; pointPos=digits.length; }
     else { pointPos = BASEPOS; }
-    hideMaru(); renderMul();
+    hideMaru(); hideBatsu(); renderMul();
   });
 
   // --- タブ切りかえ ---

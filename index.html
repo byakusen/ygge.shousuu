@@ -658,7 +658,6 @@
     Array.prototype.forEach.call(blanks, function(b){
       b.addEventListener('focus', function(){ keyTarget = b; });
       b.addEventListener('input', function(){ hideMaru(); hideBatsu(); sanitize(b); });
-      b.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); check(); } });
     });
     keyTarget = blanks[0] || ans;
     document.getElementById('viewreveal').textContent =
@@ -842,7 +841,7 @@
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('.pad button[data-k]'), function(btn){
-    btn.addEventListener('click', function(){ press(btn.getAttribute('data-k')); });
+    btn.addEventListener('click', function(){ press(btn.getAttribute('data-k')); this.blur(); });
   });
 
   function checkView(){
@@ -904,7 +903,16 @@
     else { revealed = !revealed; render(); }
   });
   document.getElementById('checkBtn').addEventListener('click', check);
-  ans.addEventListener('keydown', function(e){ if(e.key==='Enter') check(); });
+  // Return（Enter）で答え合わせ。テンキー入力でも効くよう、文書全体で受ける。
+  // 不等号タブはボタンで選ぶので対象外。
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Enter') return;
+    if(mode==='ineq') return;
+    var el = document.activeElement;
+    if(el && el.tagName==='BUTTON') return;   // ボタンにフォーカス中はそのボタンの動作にまかせる
+    e.preventDefault();
+    check();
+  });
 
   // --- 小数の見方モードの操作 ---
   function updateVpChips(){

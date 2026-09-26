@@ -3282,6 +3282,8 @@
     try{ seikai.currentTime = 0; seikai.play(); }catch(e){}
     if(maruTimer) clearTimeout(maruTimer);
     maruTimer = setTimeout(function(){ maru.classList.remove('show'); maruTimer=null; }, 1000);
+    // 📝 テストの練習：テスト中は「同じ小タブの つぎの問題」ではなく「つぎの大問」へ
+    if(window.TestRun && TestRun.onDone()) return;
     scheduleAutoNext();
   }
   function hideMaru(){
@@ -3291,6 +3293,7 @@
   var batsuTimer = null;
   function showBatsu(){            // まちがい：はなまると同じ動き・音なし・1秒で消える
     chalMiss();
+    if(window.TestRun) TestRun.miss();   // 📝 テストの練習：まちがいを 数える
     hideMaru();
     batsu.classList.remove('show');
     void batsu.offsetWidth;
@@ -3889,6 +3892,82 @@
     if(window.Challenge10) Challenge10.newProblem();
   }
 
+  /* ===== 📝 テストの練習 との つなぎ（ブリッジ）=====================
+     本体は (function(){ … })() の 中なので、外から さわれない。
+     「テストの練習」（ページの いちばん下の ①②）が つかう ぶんだけ、
+     ここで window.ShousuuApp として 外に 出しておく。
+     ここを 消すと テストの練習だけ 動かなくなる（本体は そのまま 動く）。 */
+  var TAB_LABEL = { rep:'小数の表し方', sys:'小数のしくみ', nl2:'数直線',
+                    his:'筆算', view:'小数の見方', think:'考える' };
+  function tabOfSub(id){
+    var t; for(t in TAB_ITEMS){ if(TAB_ITEMS[t].indexOf(id) >= 0) return t; }
+    return null;
+  }
+  function subLabelOf(id){
+    var b = document.querySelector('#subtabs button[data-sub="'+id+'"]');
+    return b ? b.textContent : id;
+  }
+  // 大問の せってい（op／unit）を 入れて、その場で 問題を 作りなおす
+  function testApplyOpt(id, opt){
+    if(!opt) return;
+    if(isHisSub(id) && opt.op){                       // 筆算・考える：たし算／ひき算
+      hisRand = (opt.op === 'rand');
+      if(!hisRand) hisOp = opt.op;
+      newHis(); clearAll(); renderHis();
+    } else if(id === 'kg' && opt.unit){                // kg単位：重さ／長さ
+      kgRand = (opt.unit === 'rand');
+      if(!kgRand) kgUnit = opt.unit;
+      newKg(); clearAll(); renderKg();
+    } else if(id === 'mul' && opt.op){                 // 10倍：×10／×100／1/10／1/100
+      mulRand = (opt.op === 'rand');
+      mulOp = mulRand ? pickMulOp() : opt.op;
+      newMul(mulOp); updateOpChips(); clearAll(); renderMul();
+    }
+  }
+  window.ShousuuApp = {
+    version: 'shousuu-bridge-1',
+    has:   function(id){ return !!tabOfSub(id); },
+    label: function(id){
+      var t = tabOfSub(id);
+      return t ? (TAB_LABEL[t] + '／' + subLabelOf(id)) : id;
+    },
+    // 小タブを ひらく。opt = { op:'add'|'sub'|'rand'（筆算）／'x10'…（10倍）, unit:'kg'|'km'|'rand' }
+    open: function(id, opt){
+      var t = tabOfSub(id); if(!t) return false;
+      cancelAutoNext();
+      if(tabNow !== t) setTab(t);
+      subRand = false;
+      goSub(id);
+      testApplyOpt(id, opt);
+      return true;
+    },
+    // テストを 始める前の ようすを おぼえる／もどす
+    snapshot: function(){
+      return { tab:tabNow, sub:subNow, rand:subRand,
+               hisOp:hisOp, hisRand:hisRand, kgUnit:kgUnit, kgRand:kgRand,
+               mulOp:mulOp, mulRand:mulRand };
+    },
+    restore: function(s){
+      if(!s) return;
+      cancelAutoNext();
+      hisOp=s.hisOp; hisRand=s.hisRand; kgUnit=s.kgUnit; kgRand=s.kgRand;
+      mulOp=s.mulOp; mulRand=s.mulRand;
+      if(tabNow !== s.tab) setTab(s.tab);
+      subRand = s.rand;
+      var back = s.rand ? pickSub() : (s.sub || (TAB_ITEMS[s.tab]||[])[0]);
+      if(back){
+        goSub(back);
+        testApplyOpt(back, { op: isHisSub(back) ? (s.hisRand?'rand':s.hisOp)
+                               : (back==='mul' ? (s.mulRand?'rand':s.mulOp) : null),
+                             unit: (back==='kg') ? (s.kgRand?'rand':s.kgUnit) : null });
+      }
+      subRand = s.rand;
+      updateSubChips();
+    },
+    cancelAutoNext: cancelAutoNext,
+    waitMs: function(){ return AUTO_NEXT_MS; }
+  };
+
   setTab('rep');
   if(window.Challenge10){
     Challenge10.init({
@@ -3901,5 +3980,316 @@
   }
 })();
 </script>
+
+<!-- ============================================================
+     📝 テストの 練習 ①せってい（ここだけ 直せばよい）
+     mode … 小タブの id
+       小数の表し方 : v8（水のかさ）/ kg（kg単位）/ v7（合わせた数）
+       小数のしくみ : v5（位取り）/ v6（何の位？）/ v9（集めた数）/ ineq（不等号）/ mul（10倍）
+       数直線       : nl1（かんたん）/ nl2（難しい）
+       筆算         : tate（計算する）/ pick（選ぶ）/ yoko（書く）/ miss（まちがいさがし）
+       小数の見方   : v1（あわせた数）/ v2（○より小さい）/ v3（0.01が□こ）
+       考える       : word（文しょうだい）/ base（0.01をもとに）
+     set … 開く前に 入れる もの（テストが おわると もとに もどる）
+       筆算・考える : { op:'add' }（たし算）/{ op:'sub' }（ひき算）/{ op:'rand' }
+       kg単位       : { unit:'kg' }（重さ）/{ unit:'km' }（長さ）/{ unit:'rand' }
+       10倍         : { op:'x10' | 'x100' | 'd10' | 'd100' | 'rand' }
+     ============================================================ -->
+<script>
+window.TEST_SETTEI = {
+  button: '📝 テストの 練習',
+  waitMs: 2800,                 // はなまるから つぎの大問までの 時間（ミリ秒）
+  tests: [
+    { title:'小数の たしかめテスト', items:[
+      { no:'大問1', mode:'v8' },
+      { no:'大問2', mode:'kg',   set:{ unit:'kg' }, name:'kg単位（重さ）' },
+      { no:'大問3', mode:'v7' },
+      { no:'大問4', mode:'v5' },
+      { no:'大問5', mode:'nl1' },
+      { no:'大問6', mode:'ineq' },
+      { no:'大問7', mode:'mul',  set:{ op:'x10' },  name:'10倍（×10）' },
+      { no:'大問8', mode:'tate', set:{ op:'add' },  name:'筆算（たし算）' } ] },
+
+    { title:'筆算の テスト', items:[
+      { no:'大問1', mode:'tate', set:{ op:'add' }, name:'計算する（たし算）' },
+      { no:'大問2', mode:'tate', set:{ op:'sub' }, name:'計算する（ひき算）' },
+      { no:'大問3', mode:'pick' },
+      { no:'大問4', mode:'yoko' },
+      { no:'大問5', mode:'miss' },
+      { no:'大問6', mode:'word' } ] },
+
+    { title:'小数の 見方の テスト', items:[
+      { no:'1', mode:'v1' },
+      { no:'2', mode:'v2' },
+      { no:'3', mode:'v3' },
+      { no:'4', mode:'v9' },
+      { no:'5', mode:'base' } ] }
+  ]
+  /* 部品の 場所を 変えた ときだけ 書く（ふつうは いらない）
+  , parts:{ after:'#chal-mount', tabs:'.levels,#subtabs',
+            next:'#randBtn,#regenBtn,#vRandBtn,#vRegenBtn,#iNextBtn,#hNextBtn,#kgNextBtn,#kgHardBtn',
+            hint:'#hintBtn,#vHintBtn,#hHintBtn,#kgHintBtn,#iHideBtn',
+            chalBtn:'#btn-challenge' } */
+};
+</script>
+
+<!-- ============================================================
+     📝 テストの 練習 ②しくみ（小数39・2026-09-26）— さわらない
+     test_renshu.html の ②を、この アプリ（４年小数）用に 合わせたもの。
+     本体とは window.ShousuuApp（ブリッジ）と window.TestRun で つながる。
+     ・showMaru() の 中の 1行  … はなまるの あと つぎの 大問へ
+     ・showBatsu() の 中の 1行 … まちがいを 数える
+     ============================================================ -->
+<script>
+window.TestRun = (function(){
+  'use strict';
+  var S = window.TEST_SETTEI;
+  var A = window.ShousuuApp;
+  var P = Object.assign({
+      after  : '#chal-mount',
+      tabs   : '.levels,#subtabs',
+      next   : '#randBtn,#regenBtn,#vRandBtn,#vRegenBtn,#iNextBtn,#hNextBtn,#kgNextBtn,#kgHardBtn',
+      hint   : '#hintBtn,#vHintBtn,#hHintBtn,#kgHintBtn,#iHideBtn',
+      chalBtn: '#btn-challenge'
+    }, (S && S.parts) || {});
+  var $ = function(id){ return document.getElementById(id); };
+  var q = function(sel){ return sel ? document.querySelector(sel) : null; };
+
+  /* ---- 本体の ブリッジが あるか ---- */
+  if(!A || typeof A.open !== 'function'){
+    console.warn('テストの練習：本体の ShousuuApp（ブリッジ）が ないので うごきません');
+    return null;
+  }
+  if(!S || !Array.isArray(S.tests) || !S.tests.length){
+    console.warn('テストの練習：TEST_SETTEI.tests が ありません');
+    return null;
+  }
+
+  /* ---- せっていを たしかめる（ない 小タブは とばす）---- */
+  var TESTS = S.tests.map(function(t){
+    return {
+      title: t.title || 'テスト',
+      items: (t.items || []).filter(function(it){
+        if(it && A.has(it.mode)) return true;
+        console.warn('テストの練習：小タブ「' + (it && it.mode) + '」が ないので とばします（' + t.title + '）');
+        return false;
+      })
+    };
+  }).filter(function(t){ return t.items.length; });
+  if(!TESTS.length){ console.warn('テストの練習：出せる 大問が ありません'); return null; }
+
+  var setOf    = function(it){ return Object.assign({}, it.op !== undefined ? { op: it.op } : {}, it.set || {}); };
+  var itemName = function(it){ return it.name || A.label(it.mode); };
+  var waitMs   = function(){
+    return (typeof S.waitMs === 'number') ? S.waitMs
+         : ((typeof A.waitMs === 'function' ? A.waitMs() : 2200) + 600);
+  };
+
+  var run = null;      // { t, i, rec:[{miss,hint,st}], back }
+  var myTimer = 0;
+
+  /* ---- 見た目（本体の <style> は さわらない）---- */
+  var css = document.createElement('style');
+  css.id = 'test-style';
+  css.textContent = [
+    '#test-mount{position:relative;flex:0 0 auto;display:flex;align-items:center;}',
+    '#test-btn{font-family:inherit;font-size:1rem;font-weight:bold;padding:7px 16px;white-space:nowrap;',
+    '  color:#127a6e;background:#e3f6f2;border:2px solid #7fd3c6;border-radius:20px;box-shadow:0 2px 0 #7fd3c6;cursor:pointer;}',
+    '#test-btn:focus-visible,#test-menu button:focus-visible,#test-bar button:focus-visible,#test-result button:focus-visible{outline:3px solid #127a6e;outline-offset:2px;}',
+    '#test-menu{display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:950;background:#fff;border:3px solid #cfd8dd;',
+    '  border-radius:16px;padding:10px;box-shadow:0 8px 24px rgba(42,55,66,.20);flex-direction:column;gap:8px;min-width:250px;max-width:92vw;}',
+    '#test-menu.open{display:flex;}',
+    '#test-menu button{font-family:inherit;font-size:1rem;padding:10px 14px;border-radius:12px;border:2px solid #7fd3c6;',
+    '  background:#fff;color:#28323c;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:14px;white-space:nowrap;}',
+    '#test-menu button:hover{background:#f1fbf9;}',
+    '#test-menu small{font-size:.85em;color:#6a7780;}',
+    '#test-bar{display:none;align-items:center;gap:10px;background:rgba(255,255,255,.94);border:2px solid #7fd3c6;border-radius:20px;',
+    '  padding:4px 6px 4px 14px;font-family:inherit;font-weight:bold;color:#127a6e;white-space:nowrap;}',
+    '#test-dots{letter-spacing:2px;}',
+    '#test-skip,#test-stop{font-family:inherit;font-size:.85em;padding:4px 12px;border-radius:14px;border:2px solid #cfd8dd;background:#fff;color:#6a7780;cursor:pointer;}',
+    '#test-skip{border-color:#7fd3c6;color:#127a6e;}',
+    'body.testing #test-btn{display:none;}',
+    'body.testing #test-bar{display:flex;}',
+    'body.testing #chal-mount{display:none;}',
+    'body.testing #hisops,body.testing #kgops,body.testing #mulArea #ops{pointer-events:none;opacity:.55;}',
+    P.tabs.split(',').map(function(s){ return 'body.testing ' + s.trim(); }).join(',') + '{pointer-events:none;opacity:.45;}',
+    '#test-result{display:none;position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;}',
+    '#test-result.show{display:flex;}',
+    '#test-result .tr-card{background:#fff;border-radius:20px;padding:22px 26px;box-shadow:0 10px 40px rgba(0,0,0,.3);',
+    '  max-width:94vw;max-height:92vh;overflow:auto;font-family:inherit;color:#28323c;}',
+    '#test-result .tr-title{font-size:clamp(1.1rem,3vh,1.5rem);font-weight:800;color:#127a6e;text-align:center;margin-bottom:12px;}',
+    '#test-result table{border-collapse:collapse;font-size:clamp(.85rem,2.2vh,1.05rem);margin:0 auto;}',
+    '#test-result td{padding:6px 10px;border-bottom:2px dashed #e7ecef;white-space:nowrap;}',
+    '#test-result td.no{color:#6a7780;}',
+    '#test-result td.r-ok{color:#2f9e60;font-weight:bold;}',
+    '#test-result td.r-ng{color:#d8533a;font-weight:bold;}',
+    '#test-result td.r-sk{color:#9aa6b5;}',
+    '#test-result .tr-sum{text-align:center;margin-top:12px;font-size:clamp(1rem,2.6vh,1.25rem);}',
+    '#test-result .tr-sum b{color:#d8533a;font-size:1.3em;}',
+    '#test-result .tr-btns{display:flex;gap:12px;justify-content:center;margin-top:16px;}',
+    '#test-result button{font-family:inherit;font-size:1rem;padding:10px 20px;border-radius:14px;cursor:pointer;}',
+    '#test-again{color:#fff;background:#1fae9c;border:none;box-shadow:0 3px 0 #127a6e;}',
+    '#test-close{color:#6a7780;background:#fff;border:2px solid #cfd8dd;}'
+  ].join('\n');
+  document.head.appendChild(css);
+
+  /* ---- ボタン・メニュー・帯（10問チャレンジの となり）---- */
+  var mount = document.createElement('div');
+  mount.id = 'test-mount';
+  mount.innerHTML =
+      '<button id="test-btn" type="button">' + (S.button || '📝 テストの 練習') + '</button>'
+    + '<div id="test-menu">'
+    +   TESTS.map(function(t,k){ return '<button type="button" data-k="'+k+'">'+t.title+'<small>'+t.items.length+'問</small></button>'; }).join('')
+    + '</div>'
+    + '<div id="test-bar"><span id="test-no"></span><span id="test-dots"></span>'
+    +   '<button id="test-skip" type="button">とばす</button>'
+    +   '<button id="test-stop" type="button">やめる</button></div>';
+  var anchor = q(P.after);
+  var top = document.querySelector('.top');
+  if(anchor && anchor.parentNode) anchor.parentNode.insertBefore(mount, anchor.nextSibling);
+  else if(top) top.appendChild(mount);
+  else document.body.insertBefore(mount, document.body.firstChild);
+  var res = document.createElement('div');
+  res.id = 'test-result';
+  document.body.appendChild(res);
+
+  /* テストが 1つだけなら、メニューを 出さずに すぐ 始める */
+  $('test-btn').addEventListener('click', function(e){
+    e.stopPropagation();
+    if(TESTS.length === 1){ start(0); return; }
+    var m = $('test-menu');
+    m.classList.toggle('open');
+    if(m.classList.contains('open')) placeMenu();
+  });
+  /* せまい 画面で メニューが 左に はみ出す ときは、画面の 中へ ずらす */
+  function placeMenu(){
+    var m = $('test-menu');
+    m.style.left = ''; m.style.right = '';
+    var r = m.getBoundingClientRect(), mr = mount.getBoundingClientRect();
+    if(r.left < 8){ m.style.right = 'auto'; m.style.left = (8 - mr.left) + 'px'; }
+  }
+  $('test-menu').addEventListener('click', function(e){
+    var b = e.target.closest('button[data-k]'); if(!b) return;
+    $('test-menu').classList.remove('open');
+    start(+b.dataset.k);
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('#test-mount')) $('test-menu').classList.remove('open');
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') $('test-menu').classList.remove('open');
+  });
+  $('test-skip').addEventListener('click', function(){ skip(); });
+  $('test-stop').addEventListener('click', function(){ stop(); });
+
+  /* テストの あいだの「つぎの問題／再生成」は、その 大問を とばして つぎの 大問へ */
+  document.addEventListener('click', function(e){
+    if(!run || !P.next || !e.target.closest(P.next)) return;
+    e.stopPropagation(); e.preventDefault();
+    skip();
+  }, true);
+
+  /* ヒントを 見たか（ヒントボタンを おしたら 💡）*/
+  Array.prototype.forEach.call(document.querySelectorAll(P.hint), function(b){
+    b.addEventListener('click', function(){
+      var r = cur();
+      if(r && r.st === 'todo') r.hint = true;
+    });
+  });
+
+  /* ---- 中身 ---- */
+  function cur(){ return run ? run.rec[run.i] : null; }
+  function clearMine(){ if(myTimer){ clearTimeout(myTimer); myTimer = 0; } }
+  function bar(){
+    if(!run) return;
+    var T = TESTS[run.t], it = T.items[run.i];
+    $('test-no').textContent = '📝 ' + (/^\d+$/.test(it.no) ? it.no+'問め' : it.no) + '（' + (run.i+1) + '／' + T.items.length + '）';
+    $('test-dots').textContent = run.rec.map(function(r,i){
+      return r.st==='done' ? '●' : r.st==='skip' ? '－' : (i===run.i ? '◎' : '○');
+    }).join('');
+  }
+  function go(i){
+    clearMine();
+    run.i = i;
+    var it = TESTS[run.t].items[i];
+    A.open(it.mode, setOf(it));
+    bar();
+  }
+  function start(t){
+    var cb = q(P.chalBtn);
+    if(window.Challenge10 && Challenge10.isOn && Challenge10.isOn() && cb) cb.click();
+    res.classList.remove('show');
+    var back = run ? run.back : A.snapshot();
+    run = { t:t, i:0, back:back,
+            rec: TESTS[t].items.map(function(){ return { miss:0, hint:false, st:'todo' }; }) };
+    document.body.classList.add('testing');
+    go(0);
+  }
+  function next(){
+    if(!run) return;
+    if(run.i + 1 < run.rec.length) go(run.i + 1);
+    else finish();
+  }
+  function skip(){
+    var r = cur(); if(!r) return;
+    if(r.st !== 'done') r.st = 'skip';
+    clearMine();
+    if(typeof A.cancelAutoNext === 'function') A.cancelAutoNext();
+    next();
+  }
+  function finish(){
+    clearMine();
+    var T = TESTS[run.t], perfect = 0;
+    var rows = T.items.map(function(it,i){
+      var r = run.rec[i], tx, c;
+      if(r.st==='done' && r.miss===0){ tx = '⭕ ノーミス'; c = 'r-ok'; perfect++; }
+      else if(r.st==='done'){ tx = 'まちがい '+r.miss+'回'; c = 'r-ng'; }
+      else { tx = 'とばした'; c = 'r-sk'; }
+      return '<tr><td class="no">'+it.no+'</td><td>'+itemName(it)+'</td><td class="'+c+'">'+tx+'</td><td>'+(r.hint ? '💡' : '')+'</td></tr>';
+    }).join('');
+    res.innerHTML = '<div class="tr-card">'
+      + '<div class="tr-title">📝 '+T.title+'　おわり！</div>'
+      + '<table>'+rows+'</table>'
+      + '<div class="tr-sum">ノーミスで できた 問題　<b>'+perfect+'</b> ／ '+T.items.length+'</div>'
+      + '<div class="tr-btns"><button id="test-again" type="button">もう一度</button><button id="test-close" type="button">とじる</button></div>'
+      + '</div>';
+    res.classList.add('show');
+    $('test-again').onclick = function(){ start(run.t); };
+    $('test-close').onclick = function(){ stop(); };
+    $('test-again').focus();
+  }
+  /* やめる／とじる：はじめの タブ・たし算／ひき算などを もどす */
+  function stop(){
+    if(!run) return;
+    var back = run.back;
+    run = null;
+    clearMine();
+    res.classList.remove('show');
+    document.body.classList.remove('testing');
+    A.restore(back);
+  }
+
+  var api = {
+    on: function(){ return !!run; },
+    /* showMaru から：その 大問は おわり。はなまるの あと つぎの 大問へ */
+    onDone: function(){
+      if(!run || res.classList.contains('show')) return !!run;
+      var r = cur(); r.st = 'done';
+      bar();
+      clearMine();
+      myTimer = setTimeout(function(){ myTimer = 0; next(); }, waitMs());
+      return true;
+    },
+    /* showBatsu から：まちがい */
+    miss: function(){ var r = cur(); if(r && r.st === 'todo') r.miss++; },
+    /* 外から つかう とき用 */
+    start:  function(t){ start(t || 0); },
+    stop:   function(){ stop(); },
+    record: function(){ return run ? JSON.parse(JSON.stringify(run.rec)) : null; }
+  };
+  return api;
+})();
+</script>
+<!-- 📝 テストの 練習 ここまで -->
 </body>
 </html>
